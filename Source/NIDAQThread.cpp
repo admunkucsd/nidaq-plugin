@@ -158,17 +158,26 @@ void NIDAQThread::updateSettings(OwnedArray<ContinuousChannel>* continuousChanne
 			}
 
 		}
+        
+        for (int ch = 0; ch < getNumActiveDigitalInputs(); ch++) {
+            
+            if (mNIDAQ->di[ch]->isEnabled())
+            {
 
-		EventChannel::Settings settings{
-			EventChannel::Type::TTL,
-			getProductName() + "Digital Input Line",
-			"Digital Line from a NIDAQ device containing " + String(mNIDAQ->di.size()) + " inputs",
-			"identifier",
-			currentStream,
-			mNIDAQ->di.size()
-		};
 
-		eventChannels->add(new EventChannel(settings));
+                ContinuousChannel::Settings settings{
+                    ContinuousChannel::Type::ADC,
+                    "DI" + String(ch),
+                    "Digital Input channel from a NIDAQ device",
+                    "identifier",
+                    1.0,
+                    currentStream
+                };
+
+                continuousChannels->add(new ContinuousChannel(settings));
+
+            }
+        }
 
 		dataStreams->add(new DataStream(*currentStream)); // copy existing stream
 
@@ -191,7 +200,7 @@ int NIDAQThread::openConnection()
 
 	mNIDAQ = new NIDAQmx(dm->getDeviceAtIndex(0));
 
-	sourceBuffers.add(new DataBuffer(getNumActiveAnalogInputs(), 10000));
+	sourceBuffers.add(new DataBuffer(getNumActiveAnalogInputs() + getNumActiveDigitalInputs(), 10000));
 
 	mNIDAQ->aiBuffer = sourceBuffers.getLast();
 
