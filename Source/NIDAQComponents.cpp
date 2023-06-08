@@ -502,7 +502,6 @@ void NIDAQmx::run()
 	NIDAQ::float64 timeout = 5.0;
 
 	uint64 linesEnabled = 0;
-	double ts;
 
 	ai_timestamp = 0;
 	eventCode = 0;
@@ -521,7 +520,7 @@ void NIDAQmx::run()
 				NULL));
 
 		//LOGD("arraySizeInSamps: ", arraySizeInSamps, " Samples read: ", ai_read);
-
+        auto acquiredAt = std::chrono::system_clock::now();
 		if (getActiveDigitalLines() > 0)
 		{
 			if (digitalReadSize == 32)
@@ -555,6 +554,7 @@ void NIDAQmx::run()
 					&di_read,
 					NULL));
 		}
+        
 
 		/*
 		std::chrono::milliseconds last_time;
@@ -568,34 +568,43 @@ void NIDAQmx::run()
 			fflush(stdout);
 		}
 		*/
-
-		float aiSamples[MAX_NUM_AI_CHANNELS];
-		int count = 0;
-		for (int i = 0; i < arraySizeInSamps; i++)
-		{
-	
-			int channel = i % numActiveAnalogInputs;
-
-			aiSamples[channel] = 0;
-			if (ai[channel]->isEnabled())
-				aiSamples[channel] = ai_data[i];
-
-			if (i % numActiveAnalogInputs == 0)
-			{
-				ai_timestamp++;
-				if (getActiveDigitalLines() > 0)
-				{
-					if (digitalReadSize == 32)
-						eventCode = di_data_32[count++] & getActiveDigitalLines();
-					else if (digitalReadSize == 16)
-						eventCode = di_data_16[count++] & getActiveDigitalLines();
-					else
-						eventCode = di_data_8[count++] & getActiveDigitalLines();
-				}
-				aiBuffer->addToBuffer(aiSamples, &ai_timestamp, &ts, &eventCode, 1);
-			}
-
-		}
+        int64_t acquiredAtNs =
+            std::chrono::time_point_cast<std::chrono::nanoseconds>(acquiredAt).time_since_epoch().count();
+        double ts = (double)acquiredAtNs/1e9;
+		float samples[MAX_NUM_AI_CHANNELS + MAX_NUM_DI_CHANNELS];
+        int64 startSampleIndex = ai_timestamp;
+        for(int sampleIndex = 0; sampleIndex < numSampsPerChan; sampleIndex++) {
+            for(int analogChannelIndex = 0; analogChannelIndex < numActiveAnalogInputs; analogChannelIndex++) {
+                int sampleBufferIndex = analogChannelIndex + sampleIndex * numActiveAnalogInputs;
+                samples[analogChannelIndex] = ai_data[sampleBufferIndex];
+            }
+            if (getActiveDigitalLines() > 0) {
+                uint64_t digitalData = 0;
+                if (digitalReadSize == 32) {
+                    digitalData = di_data_32[sampleIndex] & getActiveDigitalLines();
+                }
+                else if (digitalReadSize == 16) {
+                    digitalData = di_data_16[sampleIndex] & getActiveDigitalLines();
+                }
+                else {
+                    digitalData = di_data_8[sampleIndex] & getActiveDigitalLines();
+                }
+                int activeDigitalChannels = getActiveDigitalLines();
+                int digitalChannelIndex = 0;
+                while(activeDigitalChannels > 0) {
+                    bool isChannelActive = activeDigitalChannels & 0x1;
+                    if(isChannelActive){
+                        samples[numActiveAnalogInputs + digitalChannelIndex] = digitalData & 0x1;
+                        digitalChannelIndex++;
+                        digitalData = digitalData >> 1;
+                        activeDigitalChannels = activeDigitalChannels >> 1;
+                    }
+                }
+            }
+            
+            aiBuffer->addToBuffer(samples, &ai_timestamp, &ts, &eventCode, 1, startSampleIndex);
+            ai_timestamp++;
+        }
 
 		//fflush(stdout);
 
