@@ -605,8 +605,8 @@ void NIDAQmx::run()
                 }
             }
             
-            aiBuffer->addToBuffer(samples, &ai_timestamp, &ts, &eventCode, 1, 1, timestampSampleIndex);
-            ai_timestamp++;
+			aiBuffer->addToBuffer(samples, &ai_timestamp, &ts, &eventCode, 1, 1, timestampSampleIndex);
+			ai_timestamp++;
         }
 
 		//fflush(stdout);
