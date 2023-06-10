@@ -505,6 +505,9 @@ void NIDAQmx::run()
 
 	ai_timestamp = 0;
 	eventCode = 0;
+	
+	double lastTimestamp = 0;
+	int64 lastTimestampSampleIndex = 0;
 
 	while (!threadShouldExit())
 	{
@@ -568,14 +571,20 @@ void NIDAQmx::run()
 			fflush(stdout);
 		}
 		*/
-        int64_t acquiredAtNs =
-            std::chrono::time_point_cast<std::chrono::nanoseconds>(acquiredAt).time_since_epoch().count();
-        double ts = (double)acquiredAtNs/1e9;
+
 		float samples[MAX_NUM_AI_CHANNELS + MAX_NUM_DI_CHANNELS];
         
         //The sample of the index of the timestamp being added to the buffer
         //This should be the last absolute index of the last batch of samples read
         int64 timestampSampleIndex = ai_timestamp + (numSampsPerChan - 1);
+
+		if (timestampSampleIndex - lastTimestampSampleIndex > getSampleRate() / 3) {
+			int64_t acquiredAtNs =
+				std::chrono::time_point_cast<std::chrono::nanoseconds>(acquiredAt).time_since_epoch().count();
+			lastTimestamp = (double)acquiredAtNs / 1e9;
+			lastTimestampSampleIndex = timestampSampleIndex;
+		}
+
         for(int sampleIndex = 0; sampleIndex < numSampsPerChan; sampleIndex++) {
             for(int analogChannelIndex = 0; analogChannelIndex < numActiveAnalogInputs; analogChannelIndex++) {
                 int sampleBufferIndex = analogChannelIndex + sampleIndex * numActiveAnalogInputs;
@@ -605,7 +614,7 @@ void NIDAQmx::run()
                 }
             }
             
-			aiBuffer->addToBuffer(samples, &ai_timestamp, &ts, &eventCode, 1, 1, timestampSampleIndex);
+			aiBuffer->addToBuffer(samples, &ai_timestamp, &lastTimestamp, &eventCode, 1, 1, lastTimestampSampleIndex);
 			ai_timestamp++;
         }
 
