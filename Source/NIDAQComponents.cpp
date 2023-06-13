@@ -115,7 +115,7 @@ int NIDAQmxDeviceManager::getDeviceIndexFromName(String name)
 }
 
 NIDAQmx::NIDAQmx(NIDAQDevice* device_) 
-: Thread("NIDAQmx-" + String(device_->getName())), device(device_)
+: Thread("NIDAQmx-" + String(device_->getName())), device(device_), referenceCount(0), lastReferenceValue(0)
 {
 
 	connect();
@@ -506,7 +506,7 @@ void NIDAQmx::run()
 	ai_timestamp = 0;
 	eventCode = 0;
 	
-	double lastTimestamp = 0;
+	double lastTimestamp = -1;
 	int64 lastTimestampSampleIndex = 0;
 
 	while (!threadShouldExit())
@@ -574,16 +574,20 @@ void NIDAQmx::run()
 
 		float samples[MAX_NUM_AI_CHANNELS + MAX_NUM_DI_CHANNELS];
         
+        //TODO: Add switch for timestamping strategy 
+        /*
         //The sample of the index of the timestamp being added to the buffer
         //This should be the last absolute index of the last batch of samples read
         int64 timestampSampleIndex = ai_timestamp + (numSampsPerChan - 1);
-
-		if (timestampSampleIndex - lastTimestampSampleIndex > getSampleRate() / 3) {
-			int64_t acquiredAtNs =
-				std::chrono::time_point_cast<std::chrono::nanoseconds>(acquiredAt).time_since_epoch().count();
-			lastTimestamp = (double)acquiredAtNs / 1e9;
-			lastTimestampSampleIndex = timestampSampleIndex;
-		}
+        if (timestampSampleIndex - lastTimestampSampleIndex > getSampleRate() / 3) {
+            int64_t acquiredAtNs =
+            std::chrono::time_point_cast<std::chrono::nanoseconds>(acquiredAt).time_since_epoch().count();
+            lastTimestamp = (double)acquiredAtNs / 1e9;
+            lastTimestampSampleIndex = timestampSampleIndex;
+        }
+        */
+        
+         
 
         for(int sampleIndex = 0; sampleIndex < numSampsPerChan; sampleIndex++) {
             for(int analogChannelIndex = 0; analogChannelIndex < numActiveAnalogInputs; analogChannelIndex++) {
@@ -606,11 +610,25 @@ void NIDAQmx::run()
                 while(activeDigitalChannels > 0) {
                     bool isChannelActive = activeDigitalChannels & 0x1;
                     if(isChannelActive){
-                        samples[numActiveAnalogInputs + digitalChannelIndex] = digitalData & 0x1;
+                        int digitalChannelValue = digitalData & 0x1;
+                        samples[numActiveAnalogInputs + digitalChannelIndex] = digitalChannelValue;
+                        //Digital channel 0 is reference line
+                        //Timestamp will be the number of referene samples recieved
+                        //Reference sample deteced on rising edge
+                        if(digitalChannelIndex == 0) {
+                            if(digitalChannelValue > 0 && lastReferenceValue == 0) {
+                                lastTimestamp = referenceCount;
+                                referenceCount++;
+                                lastTimestampSampleIndex = ai_timestamp;
+                            }
+                            lastReferenceValue = digitalChannelValue;
+                        }
+                        
                         digitalChannelIndex++;
                         digitalData = digitalData >> 1;
                         activeDigitalChannels = activeDigitalChannels >> 1;
                     }
+
                 }
             }
             

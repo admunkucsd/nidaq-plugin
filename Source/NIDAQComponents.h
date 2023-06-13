@@ -234,7 +234,10 @@ private:
 	uint64 eventCode;
 
 	DataBuffer* aiBuffer;
-
+    
+    int64 referenceCount;
+    int lastReferenceValue;
+    
 };
 
 #endif  // __NIDAQCOMPONENTS_H__
