@@ -509,10 +509,13 @@ void NIDAQmx::run()
 	double lastTimestamp = -1;
 	int64 lastTimestampSampleIndex = 0;
 
+	NIDAQ::DAQmxSetReadReadAllAvailSamp(taskHandleDI, 1);
 	while (!threadShouldExit())
 	{
-		if (numActiveAnalogInputs)
-			DAQmxErrChk(NIDAQ::DAQmxReadAnalogF64(
+		std::chrono::system_clock::time_point acquiredAt;
+		/*
+		if (numActiveAnalogInputs) {
+			int32 exitCode = NIDAQ::DAQmxReadAnalogF64(
 				taskHandleAI,
 				numSampsPerChan,
 				timeout,
@@ -520,10 +523,12 @@ void NIDAQmx::run()
 				ai_data,
 				arraySizeInSamps,
 				&ai_read,
-				NULL));
+				NULL);
+			DAQmxErrChk(exitCode);
+		}
+		*/
 
 		//LOGD("arraySizeInSamps: ", arraySizeInSamps, " Samples read: ", ai_read);
-        auto acquiredAt = std::chrono::system_clock::now();
 		if (getActiveDigitalLines() > 0)
 		{
 			if (digitalReadSize == 32)
@@ -549,7 +554,7 @@ void NIDAQmx::run()
 			else if (digitalReadSize == 8)
 				DAQmxErrChk(NIDAQ::DAQmxReadDigitalU8(
 					taskHandleDI,
-					numSampsPerChan,
+					-1,
 					timeout,
 					DAQmx_Val_GroupByScanNumber,
 					di_data_8,
@@ -557,8 +562,14 @@ void NIDAQmx::run()
 					&di_read,
 					NULL));
 		}
-        
-
+		acquiredAt = std::chrono::system_clock::now();
+		int64 timestampSampleIndex = ai_timestamp + (di_read - 1);
+		if (timestampSampleIndex - lastTimestampSampleIndex > getSampleRate() / 10) {
+			int64_t acquiredAtNs =
+				std::chrono::time_point_cast<std::chrono::nanoseconds>(acquiredAt).time_since_epoch().count();
+			lastTimestamp = (double)acquiredAtNs / 1e9;
+			lastTimestampSampleIndex = timestampSampleIndex;
+		}
 		/*
 		std::chrono::milliseconds last_time;
 		std::chrono::milliseconds t = std::chrono::duration_cast< std::chrono::milliseconds >(
@@ -575,25 +586,21 @@ void NIDAQmx::run()
 		float samples[MAX_NUM_AI_CHANNELS + MAX_NUM_DI_CHANNELS];
         
         //TODO: Add switch for timestamping strategy 
-        /*
+        
         //The sample of the index of the timestamp being added to the buffer
         //This should be the last absolute index of the last batch of samples read
-        int64 timestampSampleIndex = ai_timestamp + (numSampsPerChan - 1);
-        if (timestampSampleIndex - lastTimestampSampleIndex > getSampleRate() / 3) {
-            int64_t acquiredAtNs =
-            std::chrono::time_point_cast<std::chrono::nanoseconds>(acquiredAt).time_since_epoch().count();
-            lastTimestamp = (double)acquiredAtNs / 1e9;
-            lastTimestampSampleIndex = timestampSampleIndex;
-        }
-        */
+
+        
         
          
 
-        for(int sampleIndex = 0; sampleIndex < numSampsPerChan; sampleIndex++) {
-            for(int analogChannelIndex = 0; analogChannelIndex < numActiveAnalogInputs; analogChannelIndex++) {
+        for(int sampleIndex = 0; sampleIndex < di_read; sampleIndex++) {
+            /*
+			for(int analogChannelIndex = 0; analogChannelIndex < numActiveAnalogInputs; analogChannelIndex++) {
                 int sampleBufferIndex = analogChannelIndex + sampleIndex * numActiveAnalogInputs;
                 samples[analogChannelIndex] = ai_data[sampleBufferIndex];
             }
+			*/
             if (getActiveDigitalLines() > 0) {
                 uint64_t digitalData = 0;
                 if (digitalReadSize == 32) {
@@ -615,7 +622,8 @@ void NIDAQmx::run()
                         //Digital channel 0 is reference line
                         //Timestamp will be the number of referene samples recieved
                         //Reference sample deteced on rising edge
-                        if(digitalChannelIndex == 0) {
+                        /*
+						if(digitalChannelIndex == 0) {
                             if(digitalChannelValue > 0 && lastReferenceValue == 0) {
                                 lastTimestamp = referenceCount;
                                 referenceCount++;
@@ -623,6 +631,7 @@ void NIDAQmx::run()
                             }
                             lastReferenceValue = digitalChannelValue;
                         }
+						*/
                         
                         digitalChannelIndex++;
                         digitalData = digitalData >> 1;
