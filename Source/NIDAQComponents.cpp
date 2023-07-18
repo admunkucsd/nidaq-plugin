@@ -157,7 +157,13 @@ void NIDAQmx::connect()
 {
 
 	String deviceName = device->getName();
-
+	std::stringstream ss;
+	ss << "I:\\NIDAQ_SYNC_DATA\\";
+	ss << std::chrono::system_clock::now().time_since_epoch().count();
+	ss << "." << "NIDAQ";
+	ss << ".dat";
+	juce::File f(ss.str());
+	file_output_stream_ = std::make_unique<juce::FileOutputStream>(f);
 	if (deviceName == "SimulatedDevice")
 	{
 
@@ -507,7 +513,7 @@ void NIDAQmx::run()
 	eventCode = 0;
 	
 	double lastTimestamp = -1;
-	int64 lastTimestampSampleIndex = 0;
+	std::optional<int64> lastTimestampSampleIndex = std::nullopt;
 
 	NIDAQ::DAQmxSetReadReadAllAvailSamp(taskHandleDI, 1);
 	while (!threadShouldExit())
@@ -564,11 +570,23 @@ void NIDAQmx::run()
 		}
 		acquiredAt = std::chrono::system_clock::now();
 		int64 timestampSampleIndex = ai_timestamp + (di_read - 1);
-		if (timestampSampleIndex - lastTimestampSampleIndex > getSampleRate() / 10) {
+		if (timestampSampleIndex - lastTimestampSampleIndex.value_or(0) > getSampleRate() / 10) {
 			int64_t acquiredAtNs =
 				std::chrono::time_point_cast<std::chrono::nanoseconds>(acquiredAt).time_since_epoch().count();
 			lastTimestamp = (double)acquiredAtNs / 1e9;
 			lastTimestampSampleIndex = timestampSampleIndex;
+
+			std::stringstream ss1;
+			ss1 << std::setprecision(17) << lastTimestamp;
+			file_output_stream_->writeString(juce::String(ss1.str()));
+			file_output_stream_->writeString(juce::String(","));
+
+			std::stringstream ss2;
+			ss2 << lastTimestampSampleIndex.value();
+			file_output_stream_->writeString(juce::String(ss2.str()));
+			file_output_stream_->writeString(juce::String("\n"));
+
+			file_output_stream_->flush();
 		}
 		/*
 		std::chrono::milliseconds last_time;

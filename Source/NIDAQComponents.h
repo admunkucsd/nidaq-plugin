@@ -27,6 +27,7 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #include <DataThreadHeaders.h>
 #include <stdio.h>
 #include <string.h>
+#include <optional>
 
 #include "nidaq-api/NIDAQmx.h"
 
@@ -211,6 +212,8 @@ public:
 	friend class NIDAQThread;
 
 private:
+
+	std::unique_ptr<juce::FileOutputStream> file_output_stream_;
 
 	/* Manages connected NIDAQ devices */
 	ScopedPointer<NIDAQmxDeviceManager> dm;
