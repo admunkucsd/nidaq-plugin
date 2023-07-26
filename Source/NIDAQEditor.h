@@ -226,6 +226,8 @@ private:
 
 	ScopedPointer<UtilityButton> configureDeviceButton;
 
+	ScopedPointer<UtilityButton> syncStrategyButton;
+
 	Array<File> savingDirectories;
 
 	ScopedPointer<BackgroundLoader> uiLoader;

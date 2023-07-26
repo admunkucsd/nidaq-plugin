@@ -146,6 +146,8 @@ public:
 	/** Returns the sample rate of the data source.*/
 	float getSampleRate();
 
+	void setSyncStrategy(bool enableDigitalInSync) { mNIDAQ->setSyncStrategy(enableDigitalInSync); }
+
 	/** Responds to broadcast messages sent during acquisition */
 	void handleBroadcastMessage(String msg) override;
 

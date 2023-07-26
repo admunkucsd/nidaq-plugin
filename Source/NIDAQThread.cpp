@@ -52,6 +52,15 @@ NIDAQThread::NIDAQThread(SourceNode* sn) : DataThread(sn), inputAvailable(false)
 		inputAvailable = true;
 
 	openConnection();
+
+	sn->addIntParameter(
+		Parameter::ParameterScope::GLOBAL_SCOPE,
+		"sync_channel",
+		"Digital Channel with sync line",
+		0,
+		0,
+		MAX_NUM_DI_CHANNELS-1,
+		true);
 }
 
 NIDAQThread::~NIDAQThread()
@@ -365,7 +374,8 @@ XmlElement NIDAQThread::getInfoXml()
 /** Initializes data transfer.*/
 bool NIDAQThread::startAcquisition()
 {
-	
+	mNIDAQ->digitalInSyncChannel = sn->getParameter("sync_channel")->getValue();
+
 	mNIDAQ->startThread();
 
     return true;
