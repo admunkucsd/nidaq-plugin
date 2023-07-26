@@ -408,6 +408,7 @@ void PopupConfigurationWindow::comboBoxChanged(ComboBox* comboBox)
 NIDAQEditor::NIDAQEditor(GenericProcessor* parentNode, NIDAQThread* t)
 	: GenericEditor(parentNode), thread(t), currentConfigWindow(nullptr)
 {
+
 	draw();
 }
 
@@ -533,7 +534,21 @@ void NIDAQEditor::draw()
 	configureDeviceButton->setAlpha(0.5f);
 	addAndMakeVisible(configureDeviceButton);
 	
-	desiredWidth = xOffset + 100;
+	xOffset += 100;
+	syncStrategyButton = new UtilityButton("Time", Font("Default", "Plain", 15));
+	syncStrategyButton->setRadius(5.0f);
+	syncStrategyButton->setEnabledState(true);
+	syncStrategyButton->setCorners(true, true, true, true);
+	syncStrategyButton->addListener(this);
+	syncStrategyButton->setClickingTogglesState(true);
+	syncStrategyButton->setToggleState(false, sendNotification);
+	syncStrategyButton->setBounds(xOffset, 50, 50, 20);
+	addAndMakeVisible(syncStrategyButton);
+
+	addTextBoxParameterEditor("sync_channel", xOffset , 80);
+
+
+	desiredWidth = xOffset + 120;
 
 	background = new EditorBackground(nAI, nDI);
 	background->setBounds(0, 15, 500, 150);
@@ -588,6 +603,9 @@ void NIDAQEditor::startAcquisition()
 
 	//Disable device config button
 	configureDeviceButton->setEnabled(false);
+
+	//Disable sync strategy button
+	syncStrategyButton->setEnabled(false);
 }
 
 void NIDAQEditor::stopAcquisition()
@@ -603,6 +621,10 @@ void NIDAQEditor::stopAcquisition()
 
 	//Enable device config button
 	configureDeviceButton->setEnabled(true);
+
+	//Disable sync strategy button
+	syncStrategyButton->setEnabled(true);
+
 }
 
 /** Respond to button presses */
@@ -695,6 +717,12 @@ void NIDAQEditor::buttonEvent(Button* button)
 			return;
 
 		}
+	}
+	else if (button == syncStrategyButton) {
+		thread->setSyncStrategy(button->getToggleState());
+		static_cast<UtilityButton*>(button)->setLabel(button->getToggleState() ? "DI" : "TIME");
+		repaint();
+		return;
 	}
 }
 
