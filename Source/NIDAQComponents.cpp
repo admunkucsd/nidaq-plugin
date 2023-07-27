@@ -115,7 +115,7 @@ int NIDAQmxDeviceManager::getDeviceIndexFromName(String name)
 }
 
 NIDAQmx::NIDAQmx(NIDAQDevice* device_) 
-: Thread("NIDAQmx-" + String(device_->getName())), device(device_)
+: Thread("NIDAQmx-" + String(device_->getName())), device(device_), referenceCount(0), lastReferenceValue(0)
 {
 
 	connect();
@@ -157,7 +157,13 @@ void NIDAQmx::connect()
 {
 
 	String deviceName = device->getName();
-
+	std::stringstream ss;
+	ss << "I:\\NIDAQ_SYNC_DATA\\";
+	ss << std::chrono::system_clock::now().time_since_epoch().count();
+	ss << "." << "NIDAQ";
+	ss << ".dat";
+	juce::File f(ss.str());
+	file_output_stream_ = std::make_unique<juce::FileOutputStream>(f);
 	if (deviceName == "SimulatedDevice")
 	{
 
@@ -506,13 +512,16 @@ void NIDAQmx::run()
 	ai_timestamp = 0;
 	eventCode = 0;
 	
-	double lastTimestamp = 0;
-	int64 lastTimestampSampleIndex = 0;
+	double lastTimestamp = -1;
+	std::optional<int64> lastTimestampSampleIndex = std::nullopt;
 
+	NIDAQ::DAQmxSetReadReadAllAvailSamp(taskHandleDI, 1);
 	while (!threadShouldExit())
 	{
-		if (numActiveAnalogInputs)
-			DAQmxErrChk(NIDAQ::DAQmxReadAnalogF64(
+		std::chrono::system_clock::time_point acquiredAt;
+		/*
+		if (numActiveAnalogInputs) {
+			int32 exitCode = NIDAQ::DAQmxReadAnalogF64(
 				taskHandleAI,
 				numSampsPerChan,
 				timeout,
@@ -520,10 +529,12 @@ void NIDAQmx::run()
 				ai_data,
 				arraySizeInSamps,
 				&ai_read,
-				NULL));
+				NULL);
+			DAQmxErrChk(exitCode);
+		}
+		*/
 
 		//LOGD("arraySizeInSamps: ", arraySizeInSamps, " Samples read: ", ai_read);
-        auto acquiredAt = std::chrono::system_clock::now();
 		if (getActiveDigitalLines() > 0)
 		{
 			if (digitalReadSize == 32)
@@ -549,7 +560,7 @@ void NIDAQmx::run()
 			else if (digitalReadSize == 8)
 				DAQmxErrChk(NIDAQ::DAQmxReadDigitalU8(
 					taskHandleDI,
-					numSampsPerChan,
+					-1,
 					timeout,
 					DAQmx_Val_GroupByScanNumber,
 					di_data_8,
@@ -557,8 +568,26 @@ void NIDAQmx::run()
 					&di_read,
 					NULL));
 		}
-        
+		acquiredAt = std::chrono::system_clock::now();
+		int64 timestampSampleIndex = ai_timestamp + (di_read - 1);
+		if (timestampSampleIndex - lastTimestampSampleIndex.value_or(0) > getSampleRate() / 10) {
+			int64_t acquiredAtNs =
+				std::chrono::time_point_cast<std::chrono::nanoseconds>(acquiredAt).time_since_epoch().count();
+			lastTimestamp = (double)acquiredAtNs / 1e9;
+			lastTimestampSampleIndex = timestampSampleIndex;
 
+			std::stringstream ss1;
+			ss1 << std::setprecision(17) << lastTimestamp;
+			file_output_stream_->writeString(juce::String(ss1.str()));
+			file_output_stream_->writeString(juce::String(","));
+
+			std::stringstream ss2;
+			ss2 << lastTimestampSampleIndex.value();
+			file_output_stream_->writeString(juce::String(ss2.str()));
+			file_output_stream_->writeString(juce::String("\n"));
+
+			file_output_stream_->flush();
+		}
 		/*
 		std::chrono::milliseconds last_time;
 		std::chrono::milliseconds t = std::chrono::duration_cast< std::chrono::milliseconds >(
@@ -574,22 +603,22 @@ void NIDAQmx::run()
 
 		float samples[MAX_NUM_AI_CHANNELS + MAX_NUM_DI_CHANNELS];
         
+        //TODO: Add switch for timestamping strategy 
+        
         //The sample of the index of the timestamp being added to the buffer
         //This should be the last absolute index of the last batch of samples read
-        int64 timestampSampleIndex = ai_timestamp + (numSampsPerChan - 1);
 
-		if (timestampSampleIndex - lastTimestampSampleIndex > getSampleRate() / 3) {
-			int64_t acquiredAtNs =
-				std::chrono::time_point_cast<std::chrono::nanoseconds>(acquiredAt).time_since_epoch().count();
-			lastTimestamp = (double)acquiredAtNs / 1e9;
-			lastTimestampSampleIndex = timestampSampleIndex;
-		}
+        
+        
+         
 
-        for(int sampleIndex = 0; sampleIndex < numSampsPerChan; sampleIndex++) {
-            for(int analogChannelIndex = 0; analogChannelIndex < numActiveAnalogInputs; analogChannelIndex++) {
+        for(int sampleIndex = 0; sampleIndex < di_read; sampleIndex++) {
+            /*
+			for(int analogChannelIndex = 0; analogChannelIndex < numActiveAnalogInputs; analogChannelIndex++) {
                 int sampleBufferIndex = analogChannelIndex + sampleIndex * numActiveAnalogInputs;
                 samples[analogChannelIndex] = ai_data[sampleBufferIndex];
             }
+			*/
             if (getActiveDigitalLines() > 0) {
                 uint64_t digitalData = 0;
                 if (digitalReadSize == 32) {
@@ -606,11 +635,27 @@ void NIDAQmx::run()
                 while(activeDigitalChannels > 0) {
                     bool isChannelActive = activeDigitalChannels & 0x1;
                     if(isChannelActive){
-                        samples[numActiveAnalogInputs + digitalChannelIndex] = digitalData & 0x1;
+                        int digitalChannelValue = digitalData & 0x1;
+                        samples[numActiveAnalogInputs + digitalChannelIndex] = digitalChannelValue;
+                        //Digital channel 0 is reference line
+                        //Timestamp will be the number of referene samples recieved
+                        //Reference sample deteced on rising edge
+                        /*
+						if(digitalChannelIndex == 0) {
+                            if(digitalChannelValue > 0 && lastReferenceValue == 0) {
+                                lastTimestamp = referenceCount;
+                                referenceCount++;
+                                lastTimestampSampleIndex = ai_timestamp;
+                            }
+                            lastReferenceValue = digitalChannelValue;
+                        }
+						*/
+                        
                         digitalChannelIndex++;
                         digitalData = digitalData >> 1;
                         activeDigitalChannels = activeDigitalChannels >> 1;
                     }
+
                 }
             }
             
