@@ -201,6 +201,10 @@ public:
 
 	SOURCE_TYPE getSourceTypeForInput(int analogIntputIndex) { return ai[analogIntputIndex]->getSourceType(); };
 	void toggleSourceType(int analogInputIndex) { ai[analogInputIndex]->setNextSourceType(); }
+	
+	void setSyncStrategy(bool enableDigitalInSync) { digitalInSync = enableDigitalInSync; }
+
+	void writeReferenceSampleToFile(int64 sampleIndex, double timestamp);
 
 	void run();
 
@@ -240,6 +244,10 @@ private:
     
     int64 referenceCount;
     int lastReferenceValue;
+
+	bool digitalInSync;
+
+	int digitalInSyncChannel;
     
 };
 

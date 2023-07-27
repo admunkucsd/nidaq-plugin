@@ -115,7 +115,7 @@ int NIDAQmxDeviceManager::getDeviceIndexFromName(String name)
 }
 
 NIDAQmx::NIDAQmx(NIDAQDevice* device_) 
-: Thread("NIDAQmx-" + String(device_->getName())), device(device_), referenceCount(0), lastReferenceValue(0)
+: Thread("NIDAQmx-" + String(device_->getName())), device(device_), referenceCount(0), lastReferenceValue(0), digitalInSync(false), digitalInSyncChannel(0)
 {
 
 	connect();
@@ -373,6 +373,21 @@ int NIDAQmx::getActiveDigitalLines()
 	return linesEnabled;
 }
 
+void NIDAQmx::writeReferenceSampleToFile(int64 sampleIndex, double timestamp) {
+	std::stringstream ss1;
+	ss1 << std::setprecision(17) << timestamp;
+	file_output_stream_->writeString(juce::String(ss1.str()));
+	file_output_stream_->writeString(juce::String(","));
+
+	std::stringstream ss2;
+	ss2 << sampleIndex;
+	file_output_stream_->writeString(juce::String(ss2.str()));
+	file_output_stream_->writeString(juce::String("\n"));
+
+	file_output_stream_->flush();
+}
+
+
 void NIDAQmx::run()
 {
 	/* Derived from NIDAQmx: ANSI C Example program: ContAI-ReadDigChan.c */
@@ -514,11 +529,11 @@ void NIDAQmx::run()
 	
 	double lastTimestamp = -1;
 	std::optional<int64> lastTimestampSampleIndex = std::nullopt;
-
 	NIDAQ::DAQmxSetReadReadAllAvailSamp(taskHandleDI, 1);
 	while (!threadShouldExit())
 	{
 		std::chrono::system_clock::time_point acquiredAt;
+		//Disabled Analog channels to prevent analog read affecting acquiredAt accuracy
 		/*
 		if (numActiveAnalogInputs) {
 			int32 exitCode = NIDAQ::DAQmxReadAnalogF64(
@@ -534,13 +549,12 @@ void NIDAQmx::run()
 		}
 		*/
 
-		//LOGD("arraySizeInSamps: ", arraySizeInSamps, " Samples read: ", ai_read);
 		if (getActiveDigitalLines() > 0)
 		{
 			if (digitalReadSize == 32)
 				DAQmxErrChk(NIDAQ::DAQmxReadDigitalU32(
 					taskHandleDI,
-					numSampsPerChan,
+					-1,
 					timeout,
 					DAQmx_Val_GroupByScanNumber,
 					di_data_32,
@@ -550,7 +564,7 @@ void NIDAQmx::run()
 			else if (digitalReadSize == 16)
 				DAQmxErrChk(NIDAQ::DAQmxReadDigitalU16(
 					taskHandleDI,
-					numSampsPerChan,
+					-1,
 					timeout,
 					DAQmx_Val_GroupByScanNumber,
 					di_data_16,
@@ -568,25 +582,19 @@ void NIDAQmx::run()
 					&di_read,
 					NULL));
 		}
-		acquiredAt = std::chrono::system_clock::now();
-		int64 timestampSampleIndex = ai_timestamp + (di_read - 1);
-		if (timestampSampleIndex - lastTimestampSampleIndex.value_or(0) > getSampleRate() / 10) {
-			int64_t acquiredAtNs =
-				std::chrono::time_point_cast<std::chrono::nanoseconds>(acquiredAt).time_since_epoch().count();
-			lastTimestamp = (double)acquiredAtNs / 1e9;
-			lastTimestampSampleIndex = timestampSampleIndex;
 
-			std::stringstream ss1;
-			ss1 << std::setprecision(17) << lastTimestamp;
-			file_output_stream_->writeString(juce::String(ss1.str()));
-			file_output_stream_->writeString(juce::String(","));
+		if (!digitalInSync) {
+			acquiredAt = std::chrono::system_clock::now();
+			int64 timestampSampleIndex = ai_timestamp + (di_read - 1);
+			if (timestampSampleIndex - lastTimestampSampleIndex.value_or(0) > getSampleRate() / 10) {
+				int64_t acquiredAtNs =
+					std::chrono::time_point_cast<std::chrono::nanoseconds>(acquiredAt).time_since_epoch().count();
+				lastTimestamp = (double)acquiredAtNs / 1e9;
+				lastTimestampSampleIndex = timestampSampleIndex;
 
-			std::stringstream ss2;
-			ss2 << lastTimestampSampleIndex.value();
-			file_output_stream_->writeString(juce::String(ss2.str()));
-			file_output_stream_->writeString(juce::String("\n"));
+				writeReferenceSampleToFile(lastTimestampSampleIndex.value(), lastTimestamp);
 
-			file_output_stream_->flush();
+			}
 		}
 		/*
 		std::chrono::milliseconds last_time;
@@ -603,22 +611,15 @@ void NIDAQmx::run()
 
 		float samples[MAX_NUM_AI_CHANNELS + MAX_NUM_DI_CHANNELS];
         
-        //TODO: Add switch for timestamping strategy 
         
-        //The sample of the index of the timestamp being added to the buffer
-        //This should be the last absolute index of the last batch of samples read
-
-        
-        
-         
 
         for(int sampleIndex = 0; sampleIndex < di_read; sampleIndex++) {
-            /*
+            
 			for(int analogChannelIndex = 0; analogChannelIndex < numActiveAnalogInputs; analogChannelIndex++) {
                 int sampleBufferIndex = analogChannelIndex + sampleIndex * numActiveAnalogInputs;
                 samples[analogChannelIndex] = ai_data[sampleBufferIndex];
             }
-			*/
+			
             if (getActiveDigitalLines() > 0) {
                 uint64_t digitalData = 0;
                 if (digitalReadSize == 32) {
@@ -637,19 +638,21 @@ void NIDAQmx::run()
                     if(isChannelActive){
                         int digitalChannelValue = digitalData & 0x1;
                         samples[numActiveAnalogInputs + digitalChannelIndex] = digitalChannelValue;
-                        //Digital channel 0 is reference line
+                        
+						//If using digital sync line:
                         //Timestamp will be the number of referene samples recieved
                         //Reference sample deteced on rising edge
-                        /*
-						if(digitalChannelIndex == 0) {
-                            if(digitalChannelValue > 0 && lastReferenceValue == 0) {
-                                lastTimestamp = referenceCount;
-                                referenceCount++;
-                                lastTimestampSampleIndex = ai_timestamp;
-                            }
-                            lastReferenceValue = digitalChannelValue;
-                        }
-						*/
+						if (digitalInSync) {
+							if (digitalChannelIndex == digitalInSyncChannel) {
+								if (digitalChannelValue > 0 && lastReferenceValue == 0) {
+									lastTimestamp = referenceCount;
+									referenceCount++;
+									lastTimestampSampleIndex = ai_timestamp;
+									writeReferenceSampleToFile(lastTimestampSampleIndex.value(), lastTimestamp);
+								}
+								lastReferenceValue = digitalChannelValue;
+							}
+						}
                         
                         digitalChannelIndex++;
                         digitalData = digitalData >> 1;
