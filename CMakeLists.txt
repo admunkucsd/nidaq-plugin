@@ -3,7 +3,7 @@ if (NOT DEFINED GUI_BASE_DIR)
 	if (DEFINED ENV{GUI_BASE_DIR})
 		set(GUI_BASE_DIR $ENV{GUI_BASE_DIR})
 	else()
-		set(GUI_BASE_DIR ${CMAKE_CURRENT_SOURCE_DIR}/../../plugin-GUI)
+		set(GUI_BASE_DIR ${CMAKE_CURRENT_SOURCE_DIR}/../plugin-GUI)
 	endif()
 endif()
 
@@ -12,12 +12,7 @@ get_filename_component(PLUGIN_NAME ${PROJECT_FOLDER} NAME)
 
 project(OE_PLUGIN_${PLUGIN_NAME})
 set(CMAKE_SHARED_LIBRARY_PREFIX "")
-if(${CMAKE_SYSTEM_NAME} STREQUAL "Linux")
-	set(LINUX 1)
-	if(NOT CMAKE_BUILD_TYPE)
-		set(CMAKE_BUILD_TYPE Debug)
-	endif()
-endif()
+
 
 set_property(DIRECTORY APPEND PROPERTY COMPILE_DEFINITIONS
 	OEPLUGIN
@@ -45,10 +40,12 @@ else()
 	add_library(${PLUGIN_NAME} SHARED ${SRC_FILES})
 endif()
 
+add_dependencies(${PLUGIN_NAME} open-ephys)
+
 target_compile_features(${PLUGIN_NAME} PUBLIC cxx_auto_type cxx_generalized_initializers)
 target_include_directories(${PLUGIN_NAME} PUBLIC ${GUI_BASE_DIR}/JuceLibraryCode ${GUI_BASE_DIR}/JuceLibraryCode/modules ${GUI_BASE_DIR}/Plugins/Headers ${GUI_COMMONLIB_DIR}/include)
 
-set(GUI_BIN_DIR ${GUI_BASE_DIR}/Build/${CONFIGURATION_FOLDER})
+set(GUI_BIN_DIR ${CMAKE_BINARY_DIR}/plugin-GUI/${CONFIGURATION_FOLDER})
 
 if (NOT CMAKE_LIBRARY_ARCHITECTURE)
 	if (CMAKE_SIZEOF_VOID_P EQUAL 8)
@@ -65,6 +62,7 @@ if(MSVC)
 	target_link_libraries(${PLUGIN_NAME} ${GUI_BIN_DIR}/open-ephys.lib)
 	target_compile_options(${PLUGIN_NAME} PRIVATE /sdl- /W0)
 	
+	set(INSTALL_PATH ${GUI_BIN_DIR}/plugins)
 	install(TARGETS ${PLUGIN_NAME} RUNTIME DESTINATION ${GUI_BIN_DIR}/plugins  CONFIGURATIONS ${CMAKE_CONFIGURATION_TYPES})
 
 	set(CMAKE_PREFIX_PATH ${CMAKE_CURRENT_SOURCE_DIR}/../libs)
@@ -83,6 +81,10 @@ elseif(APPLE)
 
 	install(TARGETS ${PLUGIN_NAME} DESTINATION $ENV{HOME}/Library/Application\ Support/open-ephys/PlugIns)
 	set(CMAKE_PREFIX_PATH /opt/local)
+endif()
+
+if(MSVC) 
+	add_custom_command(TARGET ${PLUGIN_NAME} POST_BUILD COMMAND ${CMAKE_COMMAND} -E copy $<TARGET_FILE:${PLUGIN_NAME}> ${INSTALL_PATH})
 endif()
 
 #create filters for vs and xcode
@@ -108,6 +110,6 @@ macro(print_all_variables)
     message(STATUS "print_all_variables------------------------------------------}")
 endmacro()
 
-print_all_variables()
+#print_all_variables()
 
 
