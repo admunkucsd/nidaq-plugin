@@ -61,6 +61,12 @@ NIDAQThread::NIDAQThread(SourceNode* sn) : DataThread(sn), inputAvailable(false)
 		0,
 		MAX_NUM_DI_CHANNELS-1,
 		true);
+
+	sn->addStringParameter(
+		Parameter::ParameterScope::GLOBAL_SCOPE,
+		"nidaq_reference_sample_file_save_directory",
+		"Root directory to save the reference samples for nidaq",
+		CoreServices::getDefaultUserSaveDirectory().getFullPathName());
 }
 
 NIDAQThread::~NIDAQThread()
@@ -375,6 +381,8 @@ XmlElement NIDAQThread::getInfoXml()
 bool NIDAQThread::startAcquisition()
 {
 	mNIDAQ->digitalInSyncChannel = sn->getParameter("sync_channel")->getValue();
+
+	mNIDAQ->referenceSampleFileSaveDirectory = sn->getParameter("nidaq_reference_sample_file_save_directory")->getValue();
 
 	mNIDAQ->startThread();
 

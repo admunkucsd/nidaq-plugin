@@ -248,6 +248,7 @@ private:
 	bool digitalInSync;
 
 	int digitalInSyncChannel;
+	String referenceSampleFileSaveDirectory;
     
 };
 
