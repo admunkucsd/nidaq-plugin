@@ -157,13 +157,7 @@ void NIDAQmx::connect()
 {
 
 	String deviceName = device->getName();
-	std::stringstream ss;
-	ss << "I:\\NIDAQ_SYNC_DATA\\";
-	ss << std::chrono::system_clock::now().time_since_epoch().count();
-	ss << "." << "NIDAQ";
-	ss << ".dat";
-	juce::File f(ss.str());
-	file_output_stream_ = std::make_unique<juce::FileOutputStream>(f);
+
 	if (deviceName == "SimulatedDevice")
 	{
 
@@ -388,8 +382,32 @@ void NIDAQmx::writeReferenceSampleToFile(int64 sampleIndex, double timestamp) {
 }
 
 
-void NIDAQmx::run()
-{
+void NIDAQmx::run() {
+	String deviceName = device->getName();
+	std::stringstream ss;
+	ss << referenceSampleFileSaveDirectory;
+	ss << String(File::getSeparatorString()).toStdString() << "nidaq_reference_samples";
+	ss << String(File::getSeparatorString()).toStdString() << "nidaq";
+	ss << std::chrono::system_clock::now().time_since_epoch().count();
+	ss << "." << deviceName;
+	ss << ".dat";
+	juce::File f(ss.str());
+
+	if (!f.getParentDirectory().exists()) {
+		f.getParentDirectory().createDirectory();
+	}
+
+	file_output_stream_ = std::make_unique<juce::FileOutputStream>(f);
+
+	if (file_output_stream_->failedToOpen()) {
+		AlertWindow::showMessageBox(AlertWindow::WarningIcon,
+			"Reference Sample File Not Opened",
+			"Was not able to open file for saving NIDAQ reference samples: \n" +
+			f.getFullPathName(),
+			"Ok"
+		);
+	}
+
 	/* Derived from NIDAQmx: ANSI C Example program: ContAI-ReadDigChan.c */
 
 	NIDAQ::int32	error = 0;
