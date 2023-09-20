@@ -736,6 +736,9 @@ void NIDAQEditor::saveCustomParametersToXml(XmlElement* xml)
 	xml->setAttribute("numDigital", thread->getNumActiveDigitalInputs());
 	xml->setAttribute("digitalReadSize", thread->getDigitalReadSize());
 
+	xml->setAttribute("syncStrategyButtonState", syncStrategyButton -> getToggleState() ? 1 : 0);
+
+
 }
 
 void NIDAQEditor::loadCustomParametersFromXml(XmlElement* xml)
@@ -807,6 +810,13 @@ void NIDAQEditor::loadCustomParametersFromXml(XmlElement* xml)
 		thread->setDigitalReadSize(digitalReadSize);
 	}
 
+
 	draw();
+
+	int syncStrategyButtonState = xml->getIntAttribute("syncStrategyButtonState");
+	if (syncStrategyButtonState > 0) {
+		syncStrategyButton->setToggleState(true, sendNotification);
+	}
+
 
 }
