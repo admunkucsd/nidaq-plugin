@@ -548,24 +548,12 @@ void NIDAQmx::run() {
 	double lastTimestamp = -1;
 	std::optional<int64> lastTimestampSampleIndex = std::nullopt;
 	NIDAQ::DAQmxSetReadReadAllAvailSamp(taskHandleDI, 1);
+	NIDAQ::DAQmxSetReadReadAllAvailSamp(taskHandleAI, 1);
+
+	bool is_first_sample = true;
 	while (!threadShouldExit())
 	{
 		std::chrono::system_clock::time_point acquiredAt;
-		//Disabled Analog channels to prevent analog read affecting acquiredAt accuracy
-		/*
-		if (numActiveAnalogInputs) {
-			int32 exitCode = NIDAQ::DAQmxReadAnalogF64(
-				taskHandleAI,
-				numSampsPerChan,
-				timeout,
-				DAQmx_Val_GroupByScanNumber, //DAQmx_Val_GroupByScanNumber
-				ai_data,
-				arraySizeInSamps,
-				&ai_read,
-				NULL);
-			DAQmxErrChk(exitCode);
-		}
-		*/
 
 		if (getActiveDigitalLines() > 0)
 		{
@@ -614,28 +602,40 @@ void NIDAQmx::run() {
 
 			}
 		}
-		/*
-		std::chrono::milliseconds last_time;
-		std::chrono::milliseconds t = std::chrono::duration_cast< std::chrono::milliseconds >(
-			std::chrono::system_clock::now().time_since_epoch());
-		long long t_ms = t.count()*std::chrono::milliseconds::period::num / std::chrono::milliseconds::period::den;
-		if (ai_read>0) {
-			printf("Read @ %i | ", t_ms);
-			printf("Acquired %d AI samples. Total %d | ", (int)ai_read, (int)(totalAIRead += ai_read));
-			printf("Acquired %d DI samples. Total %d\n", (int)di_read, (int)(totalDIRead += di_read));
-			fflush(stdout);
+
+
+		if (numActiveAnalogInputs && di_read > 0) {
+			int32 exitCode = NIDAQ::DAQmxReadAnalogF64(
+				taskHandleAI,
+				di_read, // Always read at *most* the amount of samples in the digital buffer, so we're always in sync between the two.
+				timeout,
+				DAQmx_Val_GroupByScanNumber, //DAQmx_Val_GroupByScanNumber
+				ai_data,
+				numActiveAnalogInputs * di_read,
+				&ai_read,
+				NULL);
+			DAQmxErrChk(exitCode);
 		}
-		*/
+
+		if (ai_read != di_read) {
+			// This really should *never* happen - both AI and DI are sampled by the same clock (see above logic)
+			// and so there should always be at least as many samples in the AI buffer as the DI buffer, since AI
+			// sampling occurs after the DI.
+			LOGC("WARNING: read different number of AI and DI samples in NIDAQ. Data might be out of sync. ai_read=",
+				ai_read, ", di_read=", di_read);
+		}
 
 		float samples[MAX_NUM_AI_CHANNELS + MAX_NUM_DI_CHANNELS];
-        
-        
-
         for(int sampleIndex = 0; sampleIndex < di_read; sampleIndex++) {
-            
 			for(int analogChannelIndex = 0; analogChannelIndex < numActiveAnalogInputs; analogChannelIndex++) {
                 int sampleBufferIndex = analogChannelIndex + sampleIndex * numActiveAnalogInputs;
-                samples[analogChannelIndex] = ai_data[sampleBufferIndex];
+				if (sampleIndex < ai_read) {
+					samples[analogChannelIndex] = ai_data[sampleBufferIndex];
+				} else {
+					// Shouldn't ever happen; see above WARNING log and associated comment.
+					samples[analogChannelIndex] = ai_data[ai_read - 1];
+				}
+                
             }
 			
             if (getActiveDigitalLines() > 0) {
@@ -657,12 +657,14 @@ void NIDAQmx::run() {
                         int digitalChannelValue = digitalData & 0x1;
                         samples[numActiveAnalogInputs + digitalChannelIndex] = digitalChannelValue;
                         
-						//If using digital sync line:
-                        //Timestamp will be the number of referene samples recieved
-                        //Reference sample deteced on rising edge
+						// If using digital sync line:
+                        // Timestamp will be the number of reference samples recieved
+                        // Reference sample detected on rising edge
 						if (digitalInSync) {
 							if (digitalChannelIndex == digitalInSyncChannel) {
-								if (digitalChannelValue > 0 && lastReferenceValue == 0) {
+								// If our very first sample is "high", then we shouldn't trigger a rising edge.
+								// Otherwise, trigger a rising edge if we're going 0 => 1
+								if (!is_first_sample && digitalChannelValue > 0 && lastReferenceValue == 0) {
 									lastTimestamp = referenceCount;
 									referenceCount++;
 									lastTimestampSampleIndex = ai_timestamp;
@@ -682,6 +684,7 @@ void NIDAQmx::run() {
             
 			aiBuffer->addToBuffer(samples, &ai_timestamp, &lastTimestamp, &eventCode, 1, 1, lastTimestampSampleIndex);
 			ai_timestamp++;
+			is_first_sample = false;
         }
 
 		//fflush(stdout);
