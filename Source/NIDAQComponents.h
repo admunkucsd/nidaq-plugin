@@ -216,9 +216,6 @@ public:
 	friend class NIDAQThread;
 
 private:
-
-	std::unique_ptr<juce::FileOutputStream> file_output_stream_;
-
 	/* Manages connected NIDAQ devices */
 	ScopedPointer<NIDAQmxDeviceManager> dm;
 

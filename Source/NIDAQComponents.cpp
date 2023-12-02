@@ -367,47 +367,7 @@ int NIDAQmx::getActiveDigitalLines()
 	return linesEnabled;
 }
 
-void NIDAQmx::writeReferenceSampleToFile(int64 sampleIndex, double timestamp) {
-	std::stringstream ss1;
-	ss1 << std::setprecision(17) << timestamp;
-	file_output_stream_->writeString(juce::String(ss1.str()));
-	file_output_stream_->writeString(juce::String(","));
-
-	std::stringstream ss2;
-	ss2 << sampleIndex;
-	file_output_stream_->writeString(juce::String(ss2.str()));
-	file_output_stream_->writeString(juce::String("\n"));
-
-	file_output_stream_->flush();
-}
-
-
 void NIDAQmx::run() {
-	String deviceName = device->getName();
-	std::stringstream ss;
-	ss << referenceSampleFileSaveDirectory;
-	ss << String(File::getSeparatorString()).toStdString() << "nidaq_reference_samples";
-	ss << String(File::getSeparatorString()).toStdString() << "nidaq";
-	ss << std::chrono::system_clock::now().time_since_epoch().count();
-	ss << "." << deviceName;
-	ss << ".dat";
-	juce::File f(ss.str());
-
-	if (!f.getParentDirectory().exists()) {
-		f.getParentDirectory().createDirectory();
-	}
-
-	file_output_stream_ = std::make_unique<juce::FileOutputStream>(f);
-
-	if (file_output_stream_->failedToOpen()) {
-		AlertWindow::showMessageBox(AlertWindow::WarningIcon,
-			"Reference Sample File Not Opened",
-			"Was not able to open file for saving NIDAQ reference samples: \n" +
-			f.getFullPathName(),
-			"Ok"
-		);
-	}
-
 	/* Derived from NIDAQmx: ANSI C Example program: ContAI-ReadDigChan.c */
 
 	NIDAQ::int32	error = 0;
@@ -598,8 +558,6 @@ void NIDAQmx::run() {
 				lastTimestamp = (double)acquiredAtNs / 1e9;
 				lastTimestampSampleIndex = timestampSampleIndex;
 
-				writeReferenceSampleToFile(lastTimestampSampleIndex.value(), lastTimestamp);
-
 			}
 		}
 
@@ -668,7 +626,6 @@ void NIDAQmx::run() {
 									lastTimestamp = referenceCount;
 									referenceCount++;
 									lastTimestampSampleIndex = ai_timestamp;
-									writeReferenceSampleToFile(lastTimestampSampleIndex.value(), lastTimestamp);
 								}
 								lastReferenceValue = digitalChannelValue;
 							}
