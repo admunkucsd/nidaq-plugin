@@ -55,19 +55,25 @@ static int32 GetTerminalNameWithDevPrefix(NIDAQ::TaskHandle taskHandle, const ch
 	NIDAQ::int32	productCategory;
 	NIDAQ::uInt32	numDevices, i = 1;
 
-	DAQmxErrChk(NIDAQ::DAQmxGetTaskNumDevices(taskHandle, &numDevices));
+	error = NIDAQ::DAQmxGetTaskNumDevices(taskHandle, &numDevices);
+	if (DAQmxFailed(error)) {
+		return error;
+	}
 	while (i <= numDevices) {
-		DAQmxErrChk(NIDAQ::DAQmxGetNthTaskDevice(taskHandle, i++, device, 256));
-		DAQmxErrChk(NIDAQ::DAQmxGetDevProductCategory(device, &productCategory));
+		error = (NIDAQ::DAQmxGetNthTaskDevice(taskHandle, i++, device, 256));
+		if (DAQmxFailed(error)) {
+			return error;
+		}
+		error = (NIDAQ::DAQmxGetDevProductCategory(device, &productCategory));
+		if (DAQmxFailed(error)) {
+			return error;
+		}
 		if (productCategory != DAQmx_Val_CSeriesModule && productCategory != DAQmx_Val_SCXIModule) {
 			*triggerName++ = '/';
 			strcat(strcat(strcpy(triggerName, device), "/"), terminalName);
 			break;
 		}
 	}
-
-Error:
-	return error;
 }
 
 void NIDAQmxDeviceManager::scanForDevices()
@@ -330,8 +336,6 @@ void NIDAQmx::connect()
 
 		device->sampleRateRange = SettingsRange(smin, smax);
 
-Error:
-
 		if (DAQmxFailed(error))
 			NIDAQ::DAQmxGetExtendedErrorInfo(errBuff, ERR_BUFF_SIZE);
 
@@ -373,14 +377,42 @@ void NIDAQmx::run() {
 	NIDAQ::int32	error = 0;
 	char			errBuff[ERR_BUFF_SIZE] = { '\0' };
 
-	/**************************************/
-	/********CONFIG ANALOG CHANNELS********/
-	/**************************************/
-
 	NIDAQ::int32		ai_read = 0;
 	static int			totalAIRead = 0;
 	NIDAQ::TaskHandle	taskHandleAI = 0;
 
+	NIDAQ::int32		di_read = 0;
+	static int			totalDIRead = 0;
+	NIDAQ::TaskHandle	taskHandleDI = 0;
+	auto DAQmxErrChk = [taskHandleAI, taskHandleDI](NIDAQ::int32 error) {
+		if (DAQmxFailed(error)) {
+			char			errBuff[ERR_BUFF_SIZE] = { '\0' };
+
+			if (DAQmxFailed(error))
+				NIDAQ::DAQmxGetExtendedErrorInfo(errBuff, ERR_BUFF_SIZE);
+
+			if (taskHandleAI != 0) {
+				// DAQmx Stop Code
+				NIDAQ::DAQmxStopTask(taskHandleAI);
+				NIDAQ::DAQmxClearTask(taskHandleAI);
+			}
+
+			if (taskHandleDI != 0) {
+				// DAQmx Stop Code
+				NIDAQ::DAQmxStopTask(taskHandleDI);
+				NIDAQ::DAQmxClearTask(taskHandleDI);
+			}
+			if (DAQmxFailed(error))
+				LOGE("DAQmx Error: ", errBuff);
+			fflush(stdout);
+
+			throw std::invalid_argument("NIDAQ error occurred!");
+		}
+	};
+	/**************************************/
+	/********CONFIG ANALOG CHANNELS********/
+	/**************************************/
+	
 	aiBuffer->clear();
 
 	String usePort;
@@ -442,10 +474,6 @@ void NIDAQmx::run() {
 	/************************************/
 	/********CONFIG DIGITAL LINES********/
 	/************************************/
-
-	NIDAQ::int32		di_read = 0;
-	static int			totalDIRead = 0;
-	NIDAQ::TaskHandle	taskHandleDI = 0;
 
 	/* For now, restrict max num digital inputs until software buffering is implemented */
 	if (numActiveDigitalInputs)

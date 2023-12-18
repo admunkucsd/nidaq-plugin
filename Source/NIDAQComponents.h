@@ -43,7 +43,6 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #define ERR_BUFF_SIZE 2048
 
 #define STR2CHR( jString ) ((jString).toUTF8())
-#define DAQmxErrChk(functionCall) if( DAQmxFailed(error=(functionCall)) ) goto Error; else
 
 class NIDAQmx;
 class InputChannel;
