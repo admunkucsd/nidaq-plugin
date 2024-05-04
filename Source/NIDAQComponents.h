@@ -210,10 +210,6 @@ public:
 
 	void writeReferenceSampleToFile(int64 sampleIndex, double timestamp);
 
-	void setSyncStrategy(bool enableDigitalInSync) { digitalInSync = enableDigitalInSync; }
-
-	void writeReferenceSampleToFile(int64 sampleIndex, double timestamp);
-
 	void run();
 
 	Array<NIDAQ::float64> sampleRates;
@@ -249,11 +245,6 @@ private:
 
 	int64 referenceCount;
 	int lastReferenceValue;
-
-	bool digitalInSync;
-
-	int digitalInSyncChannel;
-	String referenceSampleFileSaveDirectory;
 
 	bool digitalInSync;
 
