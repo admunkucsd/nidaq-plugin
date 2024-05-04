@@ -1,23 +1,23 @@
 /*
-    ------------------------------------------------------------------
+	------------------------------------------------------------------
 
-    This file is part of the Open Ephys GUI
-    Copyright (C) 2019 Allen Institute for Brain Science and Open Ephys
+	This file is part of the Open Ephys GUI
+	Copyright (C) 2019 Allen Institute for Brain Science and Open Ephys
 
-    ------------------------------------------------------------------
+	------------------------------------------------------------------
 
-    This program is free software: you can redistribute it and/or modify
-    it under the terms of the GNU General Public License as published by
-    the Free Software Foundation, either version 3 of the License, or
-    (at your option) any later version.
+	This program is free software: you can redistribute it and/or modify
+	it under the terms of the GNU General Public License as published by
+	the Free Software Foundation, either version 3 of the License, or
+	(at your option) any later version.
 
-    This program is distributed in the hope that it will be useful,
-    but WITHOUT ANY WARRANTY; without even the implied warranty of
-    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-    GNU General Public License for more details.
+	This program is distributed in the hope that it will be useful,
+	but WITHOUT ANY WARRANTY; without even the implied warranty of
+	MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+	GNU General Public License for more details.
 
-    You should have received a copy of the GNU General Public License
-    along with this program.  If not, see <http://www.gnu.org/licenses/>.
+	You should have received a copy of the GNU General Public License
+	along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 */
 
@@ -97,14 +97,11 @@ public:
 	String getDeviceName() const { return mNIDAQ->device->getName(); };
 	String getProductName() const { return mNIDAQ->device->productName; };
 
-	void updateAnalogChannels();
-	void updateDigitalChannels();
-
 	// Returns total number of available analog inputs on device
-	int getTotalAvailableAnalogInputs() { return mNIDAQ->device->numAIChannels; }; 
+	int getTotalAvailableAnalogInputs() { return mNIDAQ->device->numAIChannels; };
 
 	// Returns total number of available digital inputs on device
-	int getTotalAvailableDigitalInputs() { return mNIDAQ->device->numDIChannels; }; 
+	int getTotalAvailableDigitalInputs() { return mNIDAQ->device->numDIChannels; };
 	//int getDigitalReadSize() const { return mNIDAQ->device->getDigitalReadSize(); };
 
 	// Returns number of currently active analog inputs
@@ -118,11 +115,6 @@ public:
 	// Returns size of current digital read setting
 	int getDigitalReadSize() { return mNIDAQ->getDigitalReadSize(); };
 	void setDigitalReadSize(int size) { mNIDAQ->setDigitalReadSize(size); };
-
-	// Returns the state of the digital ports to be used as input
-	int getNumPorts() { return mNIDAQ->getNumPorts(); };
-	bool getPortState(int portIdx) { return mNIDAQ->getPortState(portIdx); };
-	void setPortState(int portIdx, bool state) { mNIDAQ->setPortState(portIdx, state); };
 
 	// Get a list of available devices
 	Array<NIDAQDevice*> getDevices();
@@ -154,6 +146,8 @@ public:
 	/** Returns the sample rate of the data source.*/
 	float getSampleRate();
 
+	void setSyncStrategy(bool enableDigitalInSync) { mNIDAQ->setSyncStrategy(enableDigitalInSync); }
+
 	/** Responds to broadcast messages sent during acquisition */
 	void handleBroadcastMessage(String msg) override;
 
@@ -176,7 +170,7 @@ private:
 	NIDAQEditor* editor;
 
 	/* Manages connected NIDAQ devices */
-	ScopedPointer<NIDAQmxDeviceManager> dm; 
+	ScopedPointer<NIDAQmxDeviceManager> dm;
 
 	/* Flag any available devices */
 	bool inputAvailable;

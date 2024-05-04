@@ -1,23 +1,23 @@
 /*
-    ------------------------------------------------------------------
+	------------------------------------------------------------------
 
-    This file is part of the Open Ephys GUI
-    Copyright (C) 2019 Allen Institute for Brain Science and Open Ephys
+	This file is part of the Open Ephys GUI
+	Copyright (C) 2019 Allen Institute for Brain Science and Open Ephys
 
-    ------------------------------------------------------------------
+	------------------------------------------------------------------
 
-    This program is free software: you can redistribute it and/or modify
-    it under the terms of the GNU General Public License as published by
-    the Free Software Foundation, either version 3 of the License, or
-    (at your option) any later version.
+	This program is free software: you can redistribute it and/or modify
+	it under the terms of the GNU General Public License as published by
+	the Free Software Foundation, either version 3 of the License, or
+	(at your option) any later version.
 
-    This program is distributed in the hope that it will be useful,
-    but WITHOUT ANY WARRANTY; without even the implied warranty of
-    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-    GNU General Public License for more details.
+	This program is distributed in the hope that it will be useful,
+	but WITHOUT ANY WARRANTY; without even the implied warranty of
+	MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+	GNU General Public License for more details.
 
-    You should have received a copy of the GNU General Public License
-    along with this program.  If not, see <http://www.gnu.org/licenses/>.
+	You should have received a copy of the GNU General Public License
+	along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 */
 
@@ -25,7 +25,7 @@
 #include "NIDAQEditor.h"
 #include <stdexcept>
 
-DataThread* NIDAQThread::createDataThread(SourceNode *sn)
+DataThread* NIDAQThread::createDataThread(SourceNode* sn)
 {
 	return new NIDAQThread(sn);
 }
@@ -48,10 +48,27 @@ NIDAQThread::NIDAQThread(SourceNode* sn) : DataThread(sn), inputAvailable(false)
 
 	dm->scanForDevices();
 
-	if (dm->getNumAvailableDevices() > 0 && dm->getDeviceAtIndex(0)->getName() != "Simulated")
+	if (dm->getNumAvailableDevices() > 0 && dm->getDeviceAtIndex(0)->getName() != "SimulatedDevice")
 		inputAvailable = true;
 
 	openConnection();
+
+	sn->addIntParameter(
+		Parameter::ParameterScope::GLOBAL_SCOPE,
+		"sync_channel",
+		"Sync Channel",
+		"Digital Channel with sync line",
+		0,
+		0,
+		MAX_NUM_DI_CHANNELS - 1,
+		true);
+
+	sn->addStringParameter(
+		Parameter::ParameterScope::GLOBAL_SCOPE,
+		"nidaq_reference_sample_file_save_directory",
+        "Reference Sample Save Directory",
+		"Root directory to save the reference samples for nidaq",
+		CoreServices::getDefaultUserSaveDirectory().getFullPathName());
 }
 
 NIDAQThread::~NIDAQThread()
@@ -83,9 +100,6 @@ void NIDAQThread::updateSettings(OwnedArray<ContinuousChannel>* continuousChanne
 	OwnedArray<DeviceInfo>* devices,
 	OwnedArray<ConfigurationObject>* configurationObjects)
 {
-
-	if (!foundInputSource())
-		return;
 
 	if (sourceStreams.size() == 0) // initialize data streams
 	{
@@ -162,16 +176,26 @@ void NIDAQThread::updateSettings(OwnedArray<ContinuousChannel>* continuousChanne
 
 		}
 
-		EventChannel::Settings settings{
-			EventChannel::Type::TTL,
-			getProductName() + "Digital Input Line",
-			"Digital Line from a NIDAQ device containing " + String(mNIDAQ->di.size()) + " inputs",
-			"identifier",
-			currentStream,
-			mNIDAQ->di.size()
-		};
+		for (int ch = 0; ch < getNumActiveDigitalInputs(); ch++)
+		{
 
-		eventChannels->add(new EventChannel(settings));
+			if (mNIDAQ->di[ch]->isEnabled())
+			{
+
+
+				ContinuousChannel::Settings settings{
+					ContinuousChannel::Type::ADC,
+					"DI" + String(ch),
+					"Digital Input channel from a NIDAQ device",
+					"identifier",
+					1.0,
+					currentStream
+				};
+
+				continuousChannels->add(new ContinuousChannel(settings));
+
+			}
+		}
 
 		dataStreams->add(new DataStream(*currentStream)); // copy existing stream
 
@@ -194,9 +218,9 @@ int NIDAQThread::openConnection()
 
 	mNIDAQ = new NIDAQmx(dm->getDeviceAtIndex(0));
 
-	sourceBuffers.add(new DataBuffer(getNumActiveAnalogInputs(), 10000));
+	sourceBuffers.add(new DataBuffer(getNumActiveAnalogInputs() + getNumActiveDigitalInputs(), 10000));
 
-	mNIDAQ->aiBuffer = sourceBuffers.getLast();
+	mNIDAQ->aiBuffer = (NIDAQDataBuffer*)sourceBuffers.getLast();
 
 	sampleRateIndex = mNIDAQ->sampleRates.size() - 1;
 	setSampleRate(sampleRateIndex);
@@ -241,34 +265,6 @@ void NIDAQThread::selectFromAvailableDevices()
 
 }
 
-void NIDAQThread::updateAnalogChannels()
-{
-
-	sourceBuffers.removeLast();
-	sourceBuffers.add(new DataBuffer(getNumActiveAnalogInputs(), 10000));
-	mNIDAQ->aiBuffer = sourceBuffers.getLast();
-
-	for (auto& channel : mNIDAQ->ai)
-	{
-		if (!channel->isEnabled())
-			channel->setEnabled(true);
-	}
-
-	sourceStreams.clear();
-
-}
-
-void NIDAQThread::updateDigitalChannels()
-{
-
-	for (auto& channel : mNIDAQ->di)
-	{
-		if (!channel->isEnabled())
-			channel->setEnabled(true);
-	}
-
-}
-
 int NIDAQThread::swapConnection(String deviceName)
 {
 
@@ -284,8 +280,8 @@ int NIDAQThread::swapConnection(String deviceName)
 			mNIDAQ = new NIDAQmx(dev);
 
 			sourceBuffers.removeLast();
-			sourceBuffers.add(new DataBuffer(getNumActiveAnalogInputs(), 10000));
-			mNIDAQ->aiBuffer = sourceBuffers.getLast();
+			sourceBuffers.add(new DataBuffer(getNumActiveAnalogInputs() + getNumActiveDigitalInputs(), 10000));
+			mNIDAQ->aiBuffer = (NIDAQDataBuffer*)sourceBuffers.getLast();
 
 			deviceIndex = deviceIdx;
 			setDeviceIndex(deviceIndex);
@@ -368,7 +364,7 @@ Array<NIDAQ::float64> NIDAQThread::getSampleRates()
 
 bool NIDAQThread::foundInputSource()
 {
-    return inputAvailable;
+	return inputAvailable;
 }
 
 XmlElement NIDAQThread::getInfoXml()
@@ -387,10 +383,13 @@ XmlElement NIDAQThread::getInfoXml()
 /** Initializes data transfer.*/
 bool NIDAQThread::startAcquisition()
 {
-	
+	mNIDAQ->digitalInSyncChannel = sn->getParameter("sync_channel")->getValue();
+
+	mNIDAQ->referenceSampleFileSaveDirectory = sn->getParameter("nidaq_reference_sample_file_save_directory")->getValue();
+
 	mNIDAQ->startThread();
 
-    return true;
+	return true;
 }
 
 /** Stops data transfer.*/
@@ -401,10 +400,10 @@ bool NIDAQThread::stopAcquisition()
 	{
 		mNIDAQ->signalThreadShouldExit();
 	}
-    return true;
+	return true;
 }
 
-/* DEPRECATED 
+/* DEPRECATED
 
 void NIDAQThread::setDefaultChannelNames()
 {
@@ -424,7 +423,7 @@ bool NIDAQThread::usesCustomNames() const
 	return true;
 }
 
-// Returns the number of virtual subprocessors this source can generate 
+// Returns the number of virtual subprocessors this source can generate
 unsigned int NIDAQThread::getNumSubProcessors() const
 {
 	return 1;
@@ -466,7 +465,7 @@ float NIDAQThread::getBitVolts(const DataChannel* chan) const
 
 void NIDAQThread::setTriggerMode(bool trigger)
 {
-    //TODO
+	//TODO
 }
 
 void NIDAQThread::setAutoRestart(bool restart)

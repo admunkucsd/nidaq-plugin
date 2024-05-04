@@ -27,8 +27,10 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #include <DataThreadHeaders.h>
 #include <stdio.h>
 #include <string.h>
+#include <optional>
 
 #include "nidaq-api/NIDAQmx.h"
+#include "NIDAQDataBuffer.h"
 
 #define MAX_NUM_AI_CHANNELS 32
 #define MAX_NUM_DI_CHANNELS 32
@@ -36,35 +38,34 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #define DEFAULT_NUM_ANALOG_INPUTS 8
 #define DEFAULT_NUM_DIGITAL_INPUTS 8
 
-#define DEFAULT_DIGITAL_PORT 0
-
-#define PORT_SIZE 8
-
 #define NUM_SOURCE_TYPES 4
-#define NUM_SAMPLE_RATES 18
+#define NUM_SAMPLE_RATES 17
 #define CHANNEL_BUFFER_SIZE 500
 #define ERR_BUFF_SIZE 2048
 
 #define STR2CHR( jString ) ((jString).toUTF8())
-#define DAQmxErrChk(functionCall) if( DAQmxFailed(error=(functionCall)) ) goto Error; else
 
 class NIDAQmx;
 class InputChannel;
 class AnalogInput;
 class DigitalInput;
 
-enum SOURCE_TYPE {
+enum SOURCE_TYPE
+{
 	RSE = 0,
 	NRSE,
 	DIFF,
 	PSEUDO_DIFF
 };
 
-struct SettingsRange {
+struct SettingsRange
+{
 	NIDAQ::float64 min, max;
 	SettingsRange() : min(0), max(0) {}
 	SettingsRange(NIDAQ::float64 min_, NIDAQ::float64 max_)
-		: min(min_), max(max_) {}
+		: min(min_), max(max_)
+	{
+	}
 };
 
 class InputChannel
@@ -139,9 +140,6 @@ public:
 	Array<SettingsRange> voltageRanges;
 	Array<NIDAQ::float64> adcResolutions;
 
-	Array<std::string> digitalPortNames;
-	Array<bool> digitalPortStates;
-
 private:
 
 	String name;
@@ -183,13 +181,22 @@ public:
 	NIDAQDevice* device;
 
 	/* Connects to the active device */
-	void connect(); 
+	void connect();
 
-	/* Unique device properties */
 	String getProductName() { return device->productName; };
 	String getSerialNumber() { return String(device->serialNum); };
 
-	/* Analog configuration */
+	void setNumActiveAnalogInputs(int numActiveAnalogInputs_) { numActiveAnalogInputs = numActiveAnalogInputs_; };
+	int getNumActiveAnalogInputs() { return numActiveAnalogInputs; };
+
+	void setNumActiveDigitalInputs(int numActiveDigitalInputs_) { numActiveDigitalInputs = numActiveDigitalInputs_; };
+	int getNumActiveDigitalInputs() { return numActiveDigitalInputs; };
+
+	int getActiveDigitalLines();
+
+	void setDigitalReadSize(int digitalReadSize_) { digitalReadSize = digitalReadSize_; };
+	int getDigitalReadSize() { return digitalReadSize; };
+
 	NIDAQ::float64 getSampleRate() { return sampleRates[sampleRateIndex]; };
 	void setSampleRate(int index) { sampleRateIndex = index; };
 
@@ -199,22 +206,9 @@ public:
 	SOURCE_TYPE getSourceTypeForInput(int analogIntputIndex) { return ai[analogIntputIndex]->getSourceType(); };
 	void toggleSourceType(int analogInputIndex) { ai[analogInputIndex]->setNextSourceType(); }
 
-	void setNumActiveAnalogInputs(int numActiveAnalogInputs_) { numActiveAnalogInputs = numActiveAnalogInputs_; };
-	int getNumActiveAnalogInputs() { return numActiveAnalogInputs; };
+	void setSyncStrategy(bool enableDigitalInSync) { digitalInSync = enableDigitalInSync; }
 
-	/*Digital configuration */
-	void setDigitalReadSize(int digitalReadSize_) { digitalReadSize = digitalReadSize_; };
-	int getDigitalReadSize() { return digitalReadSize; };
-
-	void setNumActiveDigitalInputs(int numActiveDigitalInputs_) { numActiveDigitalInputs = numActiveDigitalInputs_; };
-	int getNumActiveDigitalInputs() { return numActiveDigitalInputs; };
-
-	/* 32-bit mask indicating which lines are currently enabled */
-	uint32 getActiveDigitalLines();
-
-	int getNumPorts() { return device->digitalPortNames.size(); };
-	bool getPortState(int idx) { return device->digitalPortStates[idx]; };
-	void setPortState(int idx, bool state) { device->digitalPortStates.set(idx, state); };
+	void writeReferenceSampleToFile(int64 sampleIndex, double timestamp);
 
 	void run();
 
@@ -226,7 +220,6 @@ public:
 	friend class NIDAQThread;
 
 private:
-
 	/* Manages connected NIDAQ devices */
 	ScopedPointer<NIDAQmxDeviceManager> dm;
 
@@ -239,16 +232,24 @@ private:
 	int numActiveAnalogInputs = DEFAULT_NUM_ANALOG_INPUTS; //8
 	int numActiveDigitalInputs = DEFAULT_NUM_DIGITAL_INPUTS; //8
 
-	HeapBlock<NIDAQ::float64> ai_data;
+	NIDAQ::float64		ai_data[CHANNEL_BUFFER_SIZE * DEFAULT_NUM_ANALOG_INPUTS];
 
-	HeapBlock<NIDAQ::uInt32> eventCodes;
+	NIDAQ::uInt8		di_data_8[CHANNEL_BUFFER_SIZE];  //PXI devices use 8-bit read
+	NIDAQ::uInt16		di_data_16[CHANNEL_BUFFER_SIZE]; //some other devices may use 16-bit read? 
+	NIDAQ::uInt32		di_data_32[CHANNEL_BUFFER_SIZE]; //USB devices use 32-bit read
 
 	int64 ai_timestamp;
 	uint64 eventCode;
 
-	std::map<int,int> digitalLineMap;
+	NIDAQDataBuffer* aiBuffer;
 
-	DataBuffer* aiBuffer;
+	int64 referenceCount;
+	int lastReferenceValue;
+
+	bool digitalInSync;
+
+	int digitalInSyncChannel;
+	String referenceSampleFileSaveDirectory;
 
 };
 

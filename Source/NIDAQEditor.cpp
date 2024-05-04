@@ -126,7 +126,7 @@ void EditorBackground::paint(Graphics& g)
 		float settingsOffsetX = diChanOffsetX + ((nDI % maxChannelsPerColumn == 0 ? 0 : 1) + nDI / diChannelsPerColumn) * paddingX * diChanWidth + 5;
 		g.setColour(Colours::darkgrey);
 		g.setFont(10);
-		
+
 		g.drawText(String("DEVICE"), settingsOffsetX, 13, 100, 10, Justification::centredLeft);
 		g.drawText(String("SAMPLE RATE"), settingsOffsetX, 45, 100, 10, Justification::centredLeft);
 		g.drawText(String("AI VOLTAGE RANGE"), settingsOffsetX, 77, 100, 10, Justification::centredLeft);
@@ -260,8 +260,8 @@ void DIButton::paintButton(Graphics& g, bool isMouseOver, bool isButtonDown)
 			g.setColour(Colours::lightgreen);
 		else
 			g.setColour(Colours::forestgreen);
-	} 
-	else 
+	}
+	else
 	{
 		if (isMouseOver)
 			g.setColour(Colours::lightgrey);
@@ -295,7 +295,8 @@ int SourceTypeButton::getId()
 
 void SourceTypeButton::update(SOURCE_TYPE sourceType)
 {
-	switch (sourceType) {
+	switch (sourceType)
+	{
 	case SOURCE_TYPE::RSE:
 		setButtonText("RSE"); return;
 	case SOURCE_TYPE::NRSE:
@@ -335,16 +336,87 @@ void BackgroundLoader::run()
 
 }
 
+PopupConfigurationWindow::PopupConfigurationWindow(NIDAQEditor* editor_)
+	: editor(editor_)
+{
+	//tableHeader.reset(new TableHeaderComponent());
+
+	analogLabel = new Label("Analog", "Analog Inputs: ");
+	analogLabel->setFont(Font(16.0f, Font::bold));
+	analogLabel->setColour(Label::textColourId, Colours::white);
+	analogLabel->setBounds(2, 8, 110, 20);
+	addAndMakeVisible(analogLabel);
+
+	int activeAnalogCount = editor->getNumActiveAnalogInputs();
+	analogChannelCountSelect = new ComboBox("Analog Count Selector");
+	for (int i = 4; i <= editor->getTotalAvailableAnalogInputs(); i += 4)
+	{
+		analogChannelCountSelect->addItem(String(i), i / 4);
+		if (i == activeAnalogCount)
+			analogChannelCountSelect->setSelectedId(i / 4, dontSendNotification);
+	}
+	analogChannelCountSelect->setBounds(115, 8, 60, 20);
+	analogChannelCountSelect->addListener(this);
+	addAndMakeVisible(analogChannelCountSelect);
+
+	digitalLabel = new Label("Digital", "Digital Inputs: ");
+	digitalLabel->setColour(Label::textColourId, Colours::white);
+	digitalLabel->setBounds(2, 33, 110, 20);
+	addAndMakeVisible(digitalLabel);
+
+	int activeDigitalCount = editor->getNumActiveDigitalInputs();
+	digitalChannelCountSelect = new ComboBox("Digital Count Selector");
+	for (int i = 0; i <= editor->getTotalAvailableDigitalInputs(); i += 4)
+	{
+		digitalChannelCountSelect->addItem(String(i), i / 4 + 1);
+		if (i == activeDigitalCount)
+			digitalChannelCountSelect->setSelectedId(i / 4 + 1, dontSendNotification);
+	}
+	digitalChannelCountSelect->setBounds(115, 33, 60, 20);
+	digitalChannelCountSelect->addListener(this);
+	addAndMakeVisible(digitalChannelCountSelect);
+
+	digitalReadLabel = new Label("Digital Read", "Digital Read: ");
+	digitalReadLabel->setColour(Label::textColourId, Colours::white);
+	digitalReadLabel->setBounds(2, 58, 110, 20);
+	addAndMakeVisible(digitalReadLabel);
+
+	digitalReadSelect = new ComboBox("Digital Read Selector");
+	Array<int> digitalReadOptions = { 8, 16, 32 };
+	for (int i = 0; i < digitalReadOptions.size(); i++)
+	{
+		digitalReadSelect->addItem(String(digitalReadOptions[i]) + " bits", i + 1);
+		if (digitalReadOptions[i] == editor->getDigitalReadSize())
+			digitalReadSelect->setSelectedId(i + 1, dontSendNotification);
+	}
+	digitalReadSelect->setBounds(115, 58, 60, 20);
+	digitalReadSelect->addListener(this);
+	addAndMakeVisible(digitalReadSelect);
+
+	setSize(180, 80);
+
+}
+
+void PopupConfigurationWindow::comboBoxChanged(ComboBox* comboBox)
+{
+	int numAnalogInputs = int(analogChannelCountSelect->getItemText(analogChannelCountSelect->getSelectedId() - 1).getFloatValue());
+	int numDigitalInputs = int(digitalChannelCountSelect->getItemText(digitalChannelCountSelect->getSelectedId() - 1).getFloatValue());
+	int digitalRead = int(digitalReadSelect->getItemText(digitalReadSelect->getSelectedId() - 1).getFloatValue());
+
+	editor->update(numAnalogInputs, numDigitalInputs, digitalRead);
+}
+
 NIDAQEditor::NIDAQEditor(GenericProcessor* parentNode, NIDAQThread* t)
 	: GenericEditor(parentNode), thread(t), currentConfigWindow(nullptr)
 {
+
 	draw();
 }
 
 void NIDAQEditor::draw()
 {
 
-	NIDAQThread* t = thread; 
+	NIDAQThread* t = thread;
 
 	int nAI;
 	int nDI;
@@ -384,14 +456,12 @@ void NIDAQEditor::draw()
 		addAndMakeVisible(a);
 		aiButtons.add(a);
 
-		SOURCE_TYPE sourceType = SOURCE_TYPE::RSE;
-		if (thread->foundInputSource())
-			sourceType = thread->getSourceTypeForInput(i);
+		SOURCE_TYPE sourceType = thread->getSourceTypeForInput(i);
+		LOGD("Got source type for input ", i, ": ", sourceType);
 
 		SourceTypeButton* b = new SourceTypeButton(i, thread, sourceType);
-		b->setBounds(xOffset+17, y_pos-2, 27, 17);
+		b->setBounds(xOffset + 17, y_pos - 2, 27, 17);
 		b->addListener(this);
-		b->setEnabled(thread->foundInputSource());
 		addAndMakeVisible(b);
 		sourceTypeButtons.add(b);
 
@@ -411,7 +481,6 @@ void NIDAQEditor::draw()
 		DIButton* b = new DIButton(i, thread);
 		b->setBounds(xOffset, y_pos, 15, 15);
 		b->addListener(this);
-		//b->setEnabled(thread->foundInputSource());
 		addAndMakeVisible(b);
 		diButtons.add(b);
 
@@ -465,11 +534,25 @@ void NIDAQEditor::draw()
 	configureDeviceButton->addListener(this);
 	configureDeviceButton->setAlpha(0.5f);
 	addAndMakeVisible(configureDeviceButton);
-	
-	desiredWidth = xOffset + 100;
+
+	xOffset += 100;
+	syncStrategyButton = new UtilityButton("Time", Font("Default", "Plain", 15));
+	syncStrategyButton->setRadius(5.0f);
+	syncStrategyButton->setEnabledState(true);
+	syncStrategyButton->setCorners(true, true, true, true);
+	syncStrategyButton->addListener(this);
+	syncStrategyButton->setClickingTogglesState(true);
+	syncStrategyButton->setToggleState(false, sendNotification);
+	syncStrategyButton->setBounds(xOffset, 50, 50, 20);
+	addAndMakeVisible(syncStrategyButton);
+
+	addTextBoxParameterEditor(Parameter::ParameterScope::GLOBAL_SCOPE, "sync_channel", xOffset, 80);
+
+
+	desiredWidth = xOffset + 120;
 
 	background = new EditorBackground(nAI, nDI);
-	background->setBounds(0, 15, 1000, 150);
+	background->setBounds(0, 15, 500, 150);
 	addAndMakeVisible(background);
 	background->toBack();
 	background->repaint();
@@ -481,32 +564,26 @@ void NIDAQEditor::draw()
 
 void NIDAQEditor::update(int numAnalog, int numDigital, int digitalReadSize)
 {
-
-	if (numAnalog != thread->getNumActiveAnalogInputs())
+	if (numAnalog != thread->getNumActiveAnalogInputs() || numDigital != thread->getNumActiveDigitalInputs())
 	{
+
 		thread->setNumActiveAnalogChannels(numAnalog);
-		thread->updateAnalogChannels();
+		thread->setNumActiveDigitalChannels(numDigital);
+
+		draw();
+
+		((CallOutBox*)currentConfigWindow->getParentComponent())->dismiss();
 
 		CoreServices::updateSignalChain(this);
 
-		((CallOutBox*)currentConfigWindow->getParentComponent())->dismiss();
-	}
-
-	if (numDigital != thread->getNumActiveDigitalInputs())
-	{
-		thread->setNumActiveDigitalChannels(numDigital);
-		thread->updateDigitalChannels();
-
-		((CallOutBox*)currentConfigWindow->getParentComponent())->dismiss();
 	}
 
 	if (digitalReadSize != thread->getDigitalReadSize())
 	{
 		thread->setDigitalReadSize(digitalReadSize);
+
+		((CallOutBox*)currentConfigWindow->getParentComponent())->dismiss();
 	}
-
-	draw();
-
 }
 
 NIDAQEditor::~NIDAQEditor()
@@ -527,6 +604,9 @@ void NIDAQEditor::startAcquisition()
 
 	//Disable device config button
 	configureDeviceButton->setEnabled(false);
+
+	//Disable sync strategy button
+	syncStrategyButton->setEnabled(false);
 }
 
 void NIDAQEditor::stopAcquisition()
@@ -542,14 +622,16 @@ void NIDAQEditor::stopAcquisition()
 
 	//Enable device config button
 	configureDeviceButton->setEnabled(true);
+
+	//Disable sync strategy button
+	syncStrategyButton->setEnabled(true);
+
 }
 
 /** Respond to button presses */
 void NIDAQEditor::buttonClicked(Button* button)
 {
-	// Ignore any button presses if there is no input source
-	if (thread->foundInputSource())
-		buttonEvent(button);
+	buttonEvent(button);
 }
 
 void NIDAQEditor::comboBoxChanged(ComboBox* comboBox)
@@ -570,7 +652,7 @@ void NIDAQEditor::comboBoxChanged(ComboBox* comboBox)
 			comboBox->setSelectedItemIndex(thread->getDeviceIndex());
 		}
 
-	} 
+	}
 	else if (comboBox == sampleRateSelectBox)
 	{
 		if (!thread->isThreadRunning())
@@ -596,7 +678,7 @@ void NIDAQEditor::comboBoxChanged(ComboBox* comboBox)
 		}
 	}
 
-} 
+}
 
 void NIDAQEditor::buttonEvent(Button* button)
 {
@@ -627,15 +709,22 @@ void NIDAQEditor::buttonEvent(Button* button)
 			currentConfigWindow = new PopupConfigurationWindow(this);
 
 			CallOutBox& myBox
-				= CallOutBox::launchAsynchronously(std::unique_ptr<Component>(currentConfigWindow), 
+				= CallOutBox::launchAsynchronously(std::unique_ptr<Component>(currentConfigWindow),
 					button->getScreenBounds(),
 					nullptr);
 
 			myBox.setDismissalMouseClicksAreAlwaysConsumed(true);
-			
+
 			return;
 
 		}
+	}
+	else if (button == syncStrategyButton)
+	{
+		thread->setSyncStrategy(button->getToggleState());
+		static_cast<UtilityButton*>(button)->setLabel(button->getToggleState() ? "DI" : "TIME");
+		repaint();
+		return;
 	}
 }
 
@@ -649,10 +738,9 @@ void NIDAQEditor::saveCustomParametersToXml(XmlElement* xml)
 	xml->setAttribute("numDigital", thread->getNumActiveDigitalInputs());
 	xml->setAttribute("digitalReadSize", thread->getDigitalReadSize());
 
-	String digitalPortStates = "";
-	for (int i = 0; i < thread->getNumPorts(); i++)
-		digitalPortStates += thread->getPortState(i) ? "1" : "0";
-	xml->setAttribute("digitalPortStates", digitalPortStates);
+	xml->setAttribute("syncStrategyButtonState", syncStrategyButton->getToggleState() ? 1 : 0);
+
+
 }
 
 void NIDAQEditor::loadCustomParametersFromXml(XmlElement* xml)
@@ -706,7 +794,6 @@ void NIDAQEditor::loadCustomParametersFromXml(XmlElement* xml)
 	if (numAnalog >= 0)
 	{
 		thread->setNumActiveAnalogChannels(numAnalog);
-		thread->updateAnalogChannels();
 	}
 
 	// Load number of active digital channels
@@ -715,7 +802,6 @@ void NIDAQEditor::loadCustomParametersFromXml(XmlElement* xml)
 	if (numDigital >= 0)
 	{
 		thread->setNumActiveDigitalChannels(numDigital);
-		thread->updateDigitalChannels();
 	}
 
 	// Load digital read size
@@ -726,110 +812,14 @@ void NIDAQEditor::loadCustomParametersFromXml(XmlElement* xml)
 		thread->setDigitalReadSize(digitalReadSize);
 	}
 
-	String digitalPortStates = xml->getStringAttribute("digitalPortStates", "000");
-
-	for (int i = 0; i < digitalPortStates.length(); i++)
-		thread->setPortState(i, digitalPortStates[i] == '1');
 
 	draw();
 
-}
-
-PopupConfigurationWindow::PopupConfigurationWindow(NIDAQEditor* editor_)
-    : editor(editor_)
-{
-    //tableHeader.reset(new TableHeaderComponent());
-
-	analogLabel = new Label ("Analog", "Analog Inputs: ");
-	analogLabel->setFont(Font(16.0f, Font::bold));
-	analogLabel->setColour(Label::textColourId, Colours::white);
-    analogLabel->setBounds (2, 8, 110, 20);
-    addAndMakeVisible(analogLabel);
-
-	int activeAnalogCount = editor->getNumActiveAnalogInputs();
-    analogChannelCountSelect = new ComboBox ("Analog Count Selector");
-	for (int i = 4; i <= editor->getTotalAvailableAnalogInputs(); i+=4)
+	int syncStrategyButtonState = xml->getIntAttribute("syncStrategyButtonState");
+	if (syncStrategyButtonState > 0)
 	{
-		analogChannelCountSelect->addItem(String(i), i / 4);
-		if (i == activeAnalogCount)
-			analogChannelCountSelect->setSelectedId(i / 4, dontSendNotification);
-	}
-    analogChannelCountSelect->setBounds (115, 8, 60, 20);
-    analogChannelCountSelect->addListener (this);
-    addAndMakeVisible (analogChannelCountSelect);
-
-	digitalLabel = new Label ("Digital", "Digital Inputs: ");
-	digitalLabel->setColour(Label::textColourId, Colours::white);
-    digitalLabel->setBounds (2, 33, 110, 20);
-    addAndMakeVisible(digitalLabel);
-
-	int activeDigitalCount = editor->getNumActiveDigitalInputs();
-    digitalChannelCountSelect = new ComboBox ("Digital Count Selector");
-	for (int i = 0; i <= editor->getTotalAvailableDigitalInputs(); i+=4)
-	{
-		digitalChannelCountSelect->addItem(String(i), i / 4 + 1);
-		if (i == activeDigitalCount)
-			digitalChannelCountSelect->setSelectedId(i / 4 + 1, dontSendNotification);
-	}
-    digitalChannelCountSelect->setBounds (115, 33, 60, 20);
-    digitalChannelCountSelect->addListener (this);
-    addAndMakeVisible (digitalChannelCountSelect);
-
-	digitalReadLabel = new Label ("Digital Read", "Digital Read: ");
-	digitalReadLabel->setColour(Label::textColourId, Colours::white);
-	digitalReadLabel->setBounds (2, 58, 110, 20);
-	addAndMakeVisible(digitalReadLabel);
-
-	digitalReadSelect = new ComboBox("Digital Read Selector");
-	Array<int> digitalReadOptions = { 8, 16, 32 };
-	for (int i = 0; i < digitalReadOptions.size(); i++)
-	{
-		digitalReadSelect->addItem(String(digitalReadOptions[i]) + " bits", i + 1);
-		if (digitalReadOptions[i] == editor->getDigitalReadSize())
-			digitalReadSelect->setSelectedId(i + 1, dontSendNotification);
-	}
-	digitalReadSelect->setBounds(115, 58, 60, 20);
-	digitalReadSelect->addListener(this);
-	addAndMakeVisible(digitalReadSelect);
-
-	for (int i = 0; i < editor->getNumPorts(); i++)
-	{
-		ToggleButton* button = new ToggleButton("P"+String(i));
-		button->setBounds(i * 60 + 5, 85, 58, 20);
-		button->addListener(this);
-		button->setToggleState(editor->getPortState(i), juce::dontSendNotification);
-		addAndMakeVisible(button);
-		digitalPortButtons.add(button);
+		syncStrategyButton->setToggleState(true, sendNotification);
 	}
 
-	setSize(180, 110);
 
-}
-
-void PopupConfigurationWindow::comboBoxChanged(ComboBox* comboBox)
-{
-	int numAnalogInputs = int(analogChannelCountSelect->getItemText(analogChannelCountSelect->getSelectedId() - 1).getFloatValue());
-	int numDigitalInputs = int(digitalChannelCountSelect->getItemText(digitalChannelCountSelect->getSelectedId() - 1).getFloatValue());
-	int digitalRead = int(digitalReadSelect->getItemText(digitalReadSelect->getSelectedId() - 1).getFloatValue());
-
-	editor->update(numAnalogInputs, numDigitalInputs, digitalRead);
-}
-
-
-void PopupConfigurationWindow::paint(juce::Graphics& g)
-{
-	// Set the background color of toggle buttons based on their state
-	for (int i = 0; i < digitalPortButtons.size(); ++i)
-	{
-		ToggleButton* button = digitalPortButtons[i];
-		g.setColour(button->getToggleState() ? juce::Colours::green : juce::Colours::red);
-		g.fillRect(button->getBounds());
-	}
-}
-
-void PopupConfigurationWindow::buttonClicked(juce::Button* button)
-{
-	int portIdx = button->getName().getLastCharacter()-'0';
-	editor->setPortState(portIdx, button->getToggleState());
-	repaint();
 }
