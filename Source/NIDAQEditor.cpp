@@ -534,7 +534,7 @@ void NIDAQEditor::draw()
 	configureDeviceButton->addListener(this);
 	configureDeviceButton->setAlpha(0.5f);
 	addAndMakeVisible(configureDeviceButton);
-
+	
 	xOffset += 100;
 	syncStrategyButton = new UtilityButton("Time", Font("Default", "Plain", 15));
 	syncStrategyButton->setRadius(5.0f);
@@ -719,8 +719,7 @@ void NIDAQEditor::buttonEvent(Button* button)
 
 		}
 	}
-	else if (button == syncStrategyButton)
-	{
+	else if (button == syncStrategyButton) {
 		thread->setSyncStrategy(button->getToggleState());
 		static_cast<UtilityButton*>(button)->setLabel(button->getToggleState() ? "DI" : "TIME");
 		repaint();
@@ -738,7 +737,7 @@ void NIDAQEditor::saveCustomParametersToXml(XmlElement* xml)
 	xml->setAttribute("numDigital", thread->getNumActiveDigitalInputs());
 	xml->setAttribute("digitalReadSize", thread->getDigitalReadSize());
 
-	xml->setAttribute("syncStrategyButtonState", syncStrategyButton->getToggleState() ? 1 : 0);
+	xml->setAttribute("syncStrategyButtonState", syncStrategyButton -> getToggleState() ? 1 : 0);
 
 
 }
@@ -816,8 +815,7 @@ void NIDAQEditor::loadCustomParametersFromXml(XmlElement* xml)
 	draw();
 
 	int syncStrategyButtonState = xml->getIntAttribute("syncStrategyButtonState");
-	if (syncStrategyButtonState > 0)
-	{
+	if (syncStrategyButtonState > 0) {
 		syncStrategyButton->setToggleState(true, sendNotification);
 	}
 

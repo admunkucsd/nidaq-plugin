@@ -175,27 +175,26 @@ void NIDAQThread::updateSettings(OwnedArray<ContinuousChannel>* continuousChanne
 			}
 
 		}
+        
+        for (int ch = 0; ch < getNumActiveDigitalInputs(); ch++) {
+            
+            if (mNIDAQ->di[ch]->isEnabled())
+            {
 
-		for (int ch = 0; ch < getNumActiveDigitalInputs(); ch++)
-		{
 
-			if (mNIDAQ->di[ch]->isEnabled())
-			{
+                ContinuousChannel::Settings settings{
+                    ContinuousChannel::Type::ADC,
+                    "DI" + String(ch),
+                    "Digital Input channel from a NIDAQ device",
+                    "identifier",
+                    1.0,
+                    currentStream
+                };
 
+                continuousChannels->add(new ContinuousChannel(settings));
 
-				ContinuousChannel::Settings settings{
-					ContinuousChannel::Type::ADC,
-					"DI" + String(ch),
-					"Digital Input channel from a NIDAQ device",
-					"identifier",
-					1.0,
-					currentStream
-				};
-
-				continuousChannels->add(new ContinuousChannel(settings));
-
-			}
-		}
+            }
+        }
 
 		dataStreams->add(new DataStream(*currentStream)); // copy existing stream
 

@@ -56,24 +56,19 @@ static int32 GetTerminalNameWithDevPrefix(NIDAQ::TaskHandle taskHandle, const ch
 	NIDAQ::uInt32	numDevices, i = 1;
 
 	error = NIDAQ::DAQmxGetTaskNumDevices(taskHandle, &numDevices);
-	if (DAQmxFailed(error))
-	{
+	if (DAQmxFailed(error)) {
 		return error;
 	}
-	while (i <= numDevices)
-	{
+	while (i <= numDevices) {
 		error = (NIDAQ::DAQmxGetNthTaskDevice(taskHandle, i++, device, 256));
-		if (DAQmxFailed(error))
-		{
+		if (DAQmxFailed(error)) {
 			return error;
 		}
 		error = (NIDAQ::DAQmxGetDevProductCategory(device, &productCategory));
-		if (DAQmxFailed(error))
-		{
+		if (DAQmxFailed(error)) {
 			return error;
 		}
-		if (productCategory != DAQmx_Val_CSeriesModule && productCategory != DAQmx_Val_SCXIModule)
-		{
+		if (productCategory != DAQmx_Val_CSeriesModule && productCategory != DAQmx_Val_SCXIModule) {
 			*triggerName++ = '/';
 			strcat(strcat(strcpy(triggerName, device), "/"), terminalName);
 			break;
@@ -125,8 +120,8 @@ int NIDAQmxDeviceManager::getDeviceIndexFromName(String name)
 
 }
 
-NIDAQmx::NIDAQmx(NIDAQDevice* device_)
-	: Thread("NIDAQmx-" + String(device_->getName())), device(device_), referenceCount(0), lastReferenceValue(0), digitalInSync(false), digitalInSyncChannel(0)
+NIDAQmx::NIDAQmx(NIDAQDevice* device_) 
+: Thread("NIDAQmx-" + String(device_->getName())), device(device_), referenceCount(0), lastReferenceValue(0), digitalInSync(false), digitalInSyncChannel(0)
 {
 
 	connect();
@@ -376,8 +371,7 @@ int NIDAQmx::getActiveDigitalLines()
 	return linesEnabled;
 }
 
-void NIDAQmx::run()
-{
+void NIDAQmx::run() {
 	/* Derived from NIDAQmx: ANSI C Example program: ContAI-ReadDigChan.c */
 
 	NIDAQ::int32	error = 0;
@@ -390,39 +384,35 @@ void NIDAQmx::run()
 	NIDAQ::int32		di_read = 0;
 	static int			totalDIRead = 0;
 	NIDAQ::TaskHandle	taskHandleDI = 0;
-	auto DAQmxErrChk = [taskHandleAI, taskHandleDI](NIDAQ::int32 error)
-		{
+	auto DAQmxErrChk = [taskHandleAI, taskHandleDI](NIDAQ::int32 error) {
+		if (DAQmxFailed(error)) {
+			char			errBuff[ERR_BUFF_SIZE] = { '\0' };
+
 			if (DAQmxFailed(error))
-			{
-				char			errBuff[ERR_BUFF_SIZE] = { '\0' };
+				NIDAQ::DAQmxGetExtendedErrorInfo(errBuff, ERR_BUFF_SIZE);
 
-				if (DAQmxFailed(error))
-					NIDAQ::DAQmxGetExtendedErrorInfo(errBuff, ERR_BUFF_SIZE);
-
-				if (taskHandleAI != 0)
-				{
-					// DAQmx Stop Code
-					NIDAQ::DAQmxStopTask(taskHandleAI);
-					NIDAQ::DAQmxClearTask(taskHandleAI);
-				}
-
-				if (taskHandleDI != 0)
-				{
-					// DAQmx Stop Code
-					NIDAQ::DAQmxStopTask(taskHandleDI);
-					NIDAQ::DAQmxClearTask(taskHandleDI);
-				}
-				if (DAQmxFailed(error))
-					LOGE("DAQmx Error: ", errBuff);
-				fflush(stdout);
-
-				throw std::invalid_argument("NIDAQ error occurred!");
+			if (taskHandleAI != 0) {
+				// DAQmx Stop Code
+				NIDAQ::DAQmxStopTask(taskHandleAI);
+				NIDAQ::DAQmxClearTask(taskHandleAI);
 			}
-		};
+
+			if (taskHandleDI != 0) {
+				// DAQmx Stop Code
+				NIDAQ::DAQmxStopTask(taskHandleDI);
+				NIDAQ::DAQmxClearTask(taskHandleDI);
+			}
+			if (DAQmxFailed(error))
+				LOGE("DAQmx Error: ", errBuff);
+			fflush(stdout);
+
+			throw std::invalid_argument("NIDAQ error occurred!");
+		}
+	};
 	/**************************************/
 	/********CONFIG ANALOG CHANNELS********/
 	/**************************************/
-
+	
 	aiBuffer->clear();
 
 	String usePort;
@@ -543,7 +533,7 @@ void NIDAQmx::run()
 
 	ai_timestamp = 0;
 	eventCode = 0;
-
+	
 	double lastTimestamp = -1;
 	std::optional<int64> lastTimestampSampleIndex = std::nullopt;
 	NIDAQ::DAQmxSetReadReadAllAvailSamp(taskHandleDI, 1);
@@ -588,12 +578,10 @@ void NIDAQmx::run()
 					NULL));
 		}
 
-		if (!digitalInSync)
-		{
+		if (!digitalInSync) {
 			acquiredAt = std::chrono::system_clock::now();
 			int64 timestampSampleIndex = ai_timestamp + (di_read - 1);
-			if (timestampSampleIndex - lastTimestampSampleIndex.value_or(0) > getSampleRate() / 10)
-			{
+			if (timestampSampleIndex - lastTimestampSampleIndex.value_or(0) > getSampleRate() / 10) {
 				int64_t acquiredAtNs =
 					std::chrono::time_point_cast<std::chrono::nanoseconds>(acquiredAt).time_since_epoch().count();
 				lastTimestamp = (double)acquiredAtNs / 1e9;
@@ -603,8 +591,7 @@ void NIDAQmx::run()
 		}
 
 
-		if (numActiveAnalogInputs && di_read > 0)
-		{
+		if (numActiveAnalogInputs && di_read > 0) {
 			int32 exitCode = NIDAQ::DAQmxReadAnalogF64(
 				taskHandleAI,
 				di_read, // Always read at *most* the amount of samples in the digital buffer, so we're always in sync between the two.
@@ -617,8 +604,7 @@ void NIDAQmx::run()
 			DAQmxErrChk(exitCode);
 		}
 
-		if (ai_read != di_read)
-		{
+		if (ai_read != di_read) {
 			// This really should *never* happen - both AI and DI are sampled by the same clock (see above logic)
 			// and so there should always be at least as many samples in the AI buffer as the DI buffer, since AI
 			// sampling occurs after the DI.
@@ -627,59 +613,45 @@ void NIDAQmx::run()
 		}
 
 		float samples[MAX_NUM_AI_CHANNELS + MAX_NUM_DI_CHANNELS];
-		for (int sampleIndex = 0; sampleIndex < di_read; sampleIndex++)
-		{
-			for (int analogChannelIndex = 0; analogChannelIndex < numActiveAnalogInputs; analogChannelIndex++)
-			{
-				int sampleBufferIndex = analogChannelIndex + sampleIndex * numActiveAnalogInputs;
-				if (sampleIndex < ai_read)
-				{
+        for(int sampleIndex = 0; sampleIndex < di_read; sampleIndex++) {
+			for(int analogChannelIndex = 0; analogChannelIndex < numActiveAnalogInputs; analogChannelIndex++) {
+                int sampleBufferIndex = analogChannelIndex + sampleIndex * numActiveAnalogInputs;
+				if (sampleIndex < ai_read) {
 					samples[analogChannelIndex] = ai_data[sampleBufferIndex];
-				}
-				else
-				{
+				} else {
 					// Shouldn't ever happen; see above WARNING log and associated comment.
 					samples[analogChannelIndex] = ai_data[ai_read - 1];
 				}
-
-			}
-
-			if (getActiveDigitalLines() > 0)
-			{
-				uint64_t digitalData = 0;
-				if (digitalReadSize == 32)
-				{
-					digitalData = di_data_32[sampleIndex] & getActiveDigitalLines();
-				}
-				else if (digitalReadSize == 16)
-				{
-					digitalData = di_data_16[sampleIndex] & getActiveDigitalLines();
-				}
-				else
-				{
-					digitalData = di_data_8[sampleIndex] & getActiveDigitalLines();
-				}
-				int activeDigitalChannels = getActiveDigitalLines();
-				int digitalChannelIndex = 0;
-				while (activeDigitalChannels > 0)
-				{
-					bool isChannelActive = activeDigitalChannels & 0x1;
-					if (isChannelActive)
-					{
-						int digitalChannelValue = digitalData & 0x1;
-						samples[numActiveAnalogInputs + digitalChannelIndex] = digitalChannelValue;
-
+                
+            }
+			
+            if (getActiveDigitalLines() > 0) {
+                uint64_t digitalData = 0;
+                if (digitalReadSize == 32) {
+                    digitalData = di_data_32[sampleIndex] & getActiveDigitalLines();
+                }
+                else if (digitalReadSize == 16) {
+                    digitalData = di_data_16[sampleIndex] & getActiveDigitalLines();
+                }
+                else {
+                    digitalData = di_data_8[sampleIndex] & getActiveDigitalLines();
+                }
+                int activeDigitalChannels = getActiveDigitalLines();
+                int digitalChannelIndex = 0;
+                while(activeDigitalChannels > 0) {
+                    bool isChannelActive = activeDigitalChannels & 0x1;
+                    if(isChannelActive){
+                        int digitalChannelValue = digitalData & 0x1;
+                        samples[numActiveAnalogInputs + digitalChannelIndex] = digitalChannelValue;
+                        
 						// If using digital sync line:
-						// Timestamp will be the number of reference samples recieved
-						// Reference sample detected on rising edge
-						if (digitalInSync)
-						{
-							if (digitalChannelIndex == digitalInSyncChannel)
-							{
+                        // Timestamp will be the number of reference samples recieved
+                        // Reference sample detected on rising edge
+						if (digitalInSync) {
+							if (digitalChannelIndex == digitalInSyncChannel) {
 								// If our very first sample is "high", then we shouldn't trigger a rising edge.
 								// Otherwise, trigger a rising edge if we're going 0 => 1
-								if (!is_first_sample && digitalChannelValue > 0 && lastReferenceValue == 0)
-								{
+								if (!is_first_sample && digitalChannelValue > 0 && lastReferenceValue == 0) {
 									lastTimestamp = referenceCount;
 									referenceCount++;
 									lastTimestampSampleIndex = ai_timestamp;
@@ -687,19 +659,19 @@ void NIDAQmx::run()
 								lastReferenceValue = digitalChannelValue;
 							}
 						}
+                        
+                        digitalChannelIndex++;
+                        digitalData = digitalData >> 1;
+                        activeDigitalChannels = activeDigitalChannels >> 1;
+                    }
 
-						digitalChannelIndex++;
-						digitalData = digitalData >> 1;
-						activeDigitalChannels = activeDigitalChannels >> 1;
-					}
-
-				}
-			}
-
+                }
+            }
+            
 			aiBuffer->addToBuffer(samples, &ai_timestamp, &lastTimestamp, &eventCode, 1, 1, lastTimestampSampleIndex);
 			ai_timestamp++;
 			is_first_sample = false;
-		}
+        }
 
 		//fflush(stdout);
 

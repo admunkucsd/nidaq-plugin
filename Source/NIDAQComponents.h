@@ -205,6 +205,10 @@ public:
 
 	SOURCE_TYPE getSourceTypeForInput(int analogIntputIndex) { return ai[analogIntputIndex]->getSourceType(); };
 	void toggleSourceType(int analogInputIndex) { ai[analogInputIndex]->setNextSourceType(); }
+	
+	void setSyncStrategy(bool enableDigitalInSync) { digitalInSync = enableDigitalInSync; }
+
+	void writeReferenceSampleToFile(int64 sampleIndex, double timestamp);
 
 	void setSyncStrategy(bool enableDigitalInSync) { digitalInSync = enableDigitalInSync; }
 
@@ -251,6 +255,11 @@ private:
 	int digitalInSyncChannel;
 	String referenceSampleFileSaveDirectory;
 
+	bool digitalInSync;
+
+	int digitalInSyncChannel;
+	String referenceSampleFileSaveDirectory;
+    
 };
 
 #endif  // __NIDAQCOMPONENTS_H__
