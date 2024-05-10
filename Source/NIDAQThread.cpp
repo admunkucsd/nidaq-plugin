@@ -219,7 +219,7 @@ int NIDAQThread::openConnection()
 
 	sourceBuffers.add(new DataBuffer(getNumActiveAnalogInputs() + getNumActiveDigitalInputs(), 10000));
 
-	mNIDAQ->aiBuffer = (NIDAQDataBuffer*)sourceBuffers.getLast();
+	mNIDAQ->aiBuffer = sourceBuffers.getLast();
 
 	sampleRateIndex = mNIDAQ->sampleRates.size() - 1;
 	setSampleRate(sampleRateIndex);
@@ -280,7 +280,7 @@ int NIDAQThread::swapConnection(String deviceName)
 
 			sourceBuffers.removeLast();
 			sourceBuffers.add(new DataBuffer(getNumActiveAnalogInputs() + getNumActiveDigitalInputs(), 10000));
-			mNIDAQ->aiBuffer = (NIDAQDataBuffer*)sourceBuffers.getLast();
+			mNIDAQ->aiBuffer = sourceBuffers.getLast();
 
 			deviceIndex = deviceIdx;
 			setDeviceIndex(deviceIndex);

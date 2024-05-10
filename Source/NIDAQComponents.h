@@ -30,7 +30,6 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #include <optional>
 
 #include "nidaq-api/NIDAQmx.h"
-#include "NIDAQDataBuffer.h"
 
 #define MAX_NUM_AI_CHANNELS 32
 #define MAX_NUM_DI_CHANNELS 32
@@ -241,7 +240,7 @@ private:
 	int64 ai_timestamp;
 	uint64 eventCode;
 
-	NIDAQDataBuffer* aiBuffer;
+	DataBuffer* aiBuffer;
 
 	int64 referenceCount;
 	int lastReferenceValue;
