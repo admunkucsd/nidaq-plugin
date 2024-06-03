@@ -668,7 +668,7 @@ void NIDAQmx::run() {
                 }
             }
             
-			aiBuffer->addToBuffer(samples, &ai_timestamp, &lastTimestamp, &eventCode, 1, 1, lastTimestampSampleIndex);
+			aiBuffer->addToBuffer(samples, &ai_timestamp, &lastTimestamp, &eventCode, 1, lastTimestampSampleIndex);
 			ai_timestamp++;
 			is_first_sample = false;
         }
