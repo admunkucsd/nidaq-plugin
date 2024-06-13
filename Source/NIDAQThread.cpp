@@ -82,13 +82,13 @@ void NIDAQThread::initialize(bool signalChainIsLoading)
 
 }
 
-String NIDAQThread::handleConfigMessage(String msg)
+String NIDAQThread::handleConfigMessage(const String& msg)
 {
 	//TODO:
 	return " ";
 }
 
-void NIDAQThread::handleBroadcastMessage(String msg)
+void NIDAQThread::handleBroadcastMessage(const String& msg, const int64 systemTimeMillis)
 {
 	//TODO
 }
