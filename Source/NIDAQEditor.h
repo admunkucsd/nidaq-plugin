@@ -1,32 +1,32 @@
 /*
-------------------------------------------------------------------
+    ------------------------------------------------------------------
 
-This file is part of the Open Ephys GUI
-Copyright (C) 2019 Allen Institute for Brain Science and Open Ephys
+    This file is part of the Open Ephys GUI
+    Copyright (C) 2024 Open Ephys
 
-------------------------------------------------------------------
+    ------------------------------------------------------------------
 
-This program is free software: you can redistribute it and/or modify
-it under the terms of the GNU General Public License as published by
-the Free Software Foundation, either version 3 of the License, or
-(at your option) any later version.
+    This program is free software: you can redistribute it and/or modify
+    it under the terms of the GNU General Public License as published by
+    the Free Software Foundation, either version 3 of the License, or
+    (at your option) any later version.
 
-This program is distributed in the hope that it will be useful,
-but WITHOUT ANY WARRANTY; without even the implied warranty of
-MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-GNU General Public License for more details.
+    This program is distributed in the hope that it will be useful,
+    but WITHOUT ANY WARRANTY; without even the implied warranty of
+    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+    GNU General Public License for more details.
 
-You should have received a copy of the GNU General Public License
-along with this program.  If not, see <http://www.gnu.org/licenses/>.
+    You should have received a copy of the GNU General Public License
+    along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 */
 
 #ifndef __NIDAQEDITOR_H__
 #define __NIDAQEDITOR_H__
 
-#include <ProcessorHeaders.h>
-#include <EditorHeaders.h>
 #include "NIDAQThread.h"
+#include <EditorHeaders.h>
+#include <ProcessorHeaders.h>
 
 class UtilityButton;
 /**
@@ -44,202 +44,197 @@ class NIDAQInterface;
 class Annotation;
 class ColorSelector;
 
-class PopupConfigurationWindow : public Component, public ComboBox::Listener
-{
-
-public:
-
-	/** Constructor */
-	PopupConfigurationWindow(NIDAQEditor* editor);
-
-	/** Destructor */
-	~PopupConfigurationWindow() {}
-
-	void comboBoxChanged(ComboBox*);
-
-private:
-
-	NIDAQEditor* editor;
-
-	ScopedPointer<Label>  analogLabel;
-	ScopedPointer<ComboBox> analogChannelCountSelect;
-
-	ScopedPointer<Label>  digitalLabel;
-	ScopedPointer<ComboBox> digitalChannelCountSelect;
-
-	ScopedPointer<Label>  digitalReadLabel;
-	ScopedPointer<ComboBox> digitalReadSelect;
-
-};
-
 class EditorBackground : public Component
 {
 public:
-	EditorBackground(int nAI, int nDI);
+    EditorBackground (int nAI, int nDI);
 
 private:
-	void paint(Graphics& g);
-	int nAI;
-	int nDI;
-
+    void paint (Graphics& g);
+    int nAI;
+    int nDI;
 };
 
 class AIButton : public ToggleButton, public Timer
 {
 public:
-	AIButton(int id, NIDAQThread* thread);
+    AIButton (int id, NIDAQThread* thread);
 
-	void setId(int id);
-	int getId();
-	void setEnabled(bool);
-	void timerCallback();
+    void setId (int id);
+    int getId();
+    void setEnabled (bool);
+    void timerCallback();
 
-	NIDAQThread* thread;
+    NIDAQThread* thread;
 
-	friend class NIDAQEditor;
+    friend class NIDAQEditor;
 
 private:
-	void paintButton(Graphics& g, bool isMouseOver, bool isButtonDown);
+    void paintButton (Graphics& g, bool isMouseOver, bool isButtonDown);
 
-	int id;
-	bool enabled;
-
+    int id;
+    bool enabled;
 };
 
 class DIButton : public ToggleButton, public Timer
 {
 public:
-	DIButton(int id, NIDAQThread* thread);
+    DIButton (int id, NIDAQThread* thread);
 
-	void setId(int id);
-	int getId();
-	void setEnabled(bool);
-	void timerCallback();
+    void setId (int id);
+    int getId();
+    void setEnabled (bool);
+    void timerCallback();
 
-	NIDAQThread* thread;
+    NIDAQThread* thread;
 
-	friend class NIDAQEditor;
+    friend class NIDAQEditor;
 
 private:
-	void paintButton(Graphics& g, bool isMouseOver, bool isButtonDown);
+    void paintButton (Graphics& g, bool isMouseOver, bool isButtonDown);
 
-	int id;
-	bool enabled;
-
+    int id;
+    bool enabled;
 };
 
 class SourceTypeButton : public TextButton, public Timer
 {
 public:
-	SourceTypeButton(int id, NIDAQThread* thread, SOURCE_TYPE source);
+    SourceTypeButton (int id, NIDAQThread* thread, SOURCE_TYPE source);
 
-	void setId(int id);
-	int getId();
-	void toggleSourceType();
-	void timerCallback();
+    void setId (int id);
+    int getId();
+    void toggleSourceType();
+    void timerCallback();
 
-	void update(SOURCE_TYPE sourceType);
+    void update (SOURCE_TYPE sourceType);
 
-	NIDAQThread* thread;
+    NIDAQThread* thread;
 
-	friend class NIDAQEditor;
+    friend class NIDAQEditor;
 
 private:
-
-	int id;
-	bool enabled;
-
+    int id;
+    bool enabled;
 };
 
 class FifoMonitor : public Component, public Timer
 {
 public:
-	FifoMonitor(NIDAQThread* thread);
+    FifoMonitor (NIDAQThread* thread);
 
-	void setFillPercentage(float percentage);
+    void setFillPercentage (float percentage);
 
-	void timerCallback();
+    void timerCallback();
 
 private:
-	void paint(Graphics& g);
+    void paint (Graphics& g);
 
-	float fillPercentage;
-	NIDAQThread* thread;
-	int id;
+    float fillPercentage;
+    NIDAQThread* thread;
+    int id;
 };
 
 class BackgroundLoader : public Thread
 {
 public:
-	BackgroundLoader(NIDAQThread* t, NIDAQEditor* e);
-	~BackgroundLoader();
-	void run();
+    BackgroundLoader (NIDAQThread* t, NIDAQEditor* e);
+    ~BackgroundLoader();
+    void run();
+
 private:
-	NIDAQThread* t;
-	NIDAQEditor* e;
+    NIDAQThread* t;
+    NIDAQEditor* e;
+};
+
+class PopupConfigurationWindow : public Component, public ComboBox::Listener, public Button::Listener
+{
+public:
+    /** Constructor */
+    PopupConfigurationWindow (NIDAQEditor* editor);
+
+    /** Destructor */
+    ~PopupConfigurationWindow() {}
+
+    void comboBoxChanged (ComboBox*);
+    void buttonClicked (Button* button) override;
+
+    void paint (Graphics& g) override;
+
+private:
+    NIDAQEditor* editor;
+
+    ScopedPointer<Label> analogLabel;
+    ScopedPointer<ComboBox> analogChannelCountSelect;
+
+    ScopedPointer<Label> digitalLabel;
+    ScopedPointer<ComboBox> digitalChannelCountSelect;
+
+    ScopedPointer<Label> digitalReadLabel;
+    ScopedPointer<ComboBox> digitalReadSelect;
+
+    OwnedArray<ToggleButton> digitalPortButtons;
 };
 
 class NIDAQEditor : public GenericEditor, public ComboBox::Listener, public Button::Listener
 {
 public:
+    /** Constructor */
+    NIDAQEditor (GenericProcessor* parentNode, NIDAQThread* thread);
 
-	/** Constructor */
-	NIDAQEditor(GenericProcessor* parentNode, NIDAQThread* thread);
+    /** Destructor */
+    virtual ~NIDAQEditor();
 
-	/** Destructor */
-	virtual ~NIDAQEditor();
+    void draw();
 
-	void draw();
+    void update (int analogCount, int digitalCount, int digitalRead);
 
-	void update(int analogCount, int digitalCount, int digitalRead);
+    void buttonEvent (Button* button);
+    void comboBoxChanged (ComboBox*);
 
-	void buttonEvent(Button* button);
-	void comboBoxChanged(ComboBox*);
+    /** Respond to button presses */
+    void buttonClicked (Button* button) override;
 
-	/** Respond to button presses */
-	void buttonClicked(Button* button) override;
+    void startAcquisition() override;
+    void stopAcquisition() override;
 
-	int getTotalAvailableAnalogInputs() { return thread->getTotalAvailableAnalogInputs(); };
-	int getTotalAvailableDigitalInputs() { return thread->getTotalAvailableDigitalInputs(); };
+    void saveCustomParametersToXml (XmlElement*) override;
+    void loadCustomParametersFromXml (XmlElement*) override;
 
-	int getNumActiveAnalogInputs() { return thread->getNumActiveAnalogInputs(); };
-	int getNumActiveDigitalInputs() { return thread->getNumActiveDigitalInputs(); };
+    int getTotalAvailableAnalogInputs() { return thread->getTotalAvailableAnalogInputs(); };
+    int getTotalAvailableDigitalInputs() { return thread->getTotalAvailableDigitalInputs(); };
 
-	int getDigitalReadSize() { return thread->getDigitalReadSize(); };
+    int getNumActiveAnalogInputs() { return thread->getNumActiveAnalogInputs(); };
+    int getNumActiveDigitalInputs() { return thread->getNumActiveDigitalInputs(); };
 
-	void startAcquisition() override;
-	void stopAcquisition() override;
+    int getDigitalReadSize() { return thread->getDigitalReadSize(); };
 
-	void saveCustomParametersToXml(XmlElement*) override;
-	void loadCustomParametersFromXml(XmlElement*) override;
+    int getNumPorts() { return thread->getNumPorts(); };
+    bool getPortState (int idx) { return thread->getPortState (idx); };
+    void setPortState (int idx, bool state) { thread->setPortState (idx, state); };
 
 private:
+    OwnedArray<AIButton> aiButtons;
+    OwnedArray<TextButton> sourceTypeButtons;
+    OwnedArray<DIButton> diButtons;
 
-	OwnedArray<AIButton> aiButtons;
-	OwnedArray<TextButton> sourceTypeButtons;
-	OwnedArray<DIButton> diButtons;
+    ScopedPointer<ComboBox> deviceSelectBox;
+    ScopedPointer<ComboBox> sampleRateSelectBox;
+    ScopedPointer<ComboBox> voltageRangeSelectBox;
+    ScopedPointer<FifoMonitor> fifoMonitor;
 
-	ScopedPointer<ComboBox> deviceSelectBox;
-	ScopedPointer<ComboBox> sampleRateSelectBox;
-	ScopedPointer<ComboBox> voltageRangeSelectBox;
-	ScopedPointer<FifoMonitor> fifoMonitor;
+    ScopedPointer<UtilityButton> configureDeviceButton;
 
-	ScopedPointer<UtilityButton> configureDeviceButton;
+    Array<File> savingDirectories;
 
-	ScopedPointer<UtilityButton> syncStrategyButton;
+    ScopedPointer<BackgroundLoader> uiLoader;
+    ScopedPointer<EditorBackground> background;
 
-	Array<File> savingDirectories;
+    PopupConfigurationWindow* currentConfigWindow;
 
-	ScopedPointer<BackgroundLoader> uiLoader;
-	ScopedPointer<EditorBackground> background;
+    NIDAQThread* thread;
 
-	PopupConfigurationWindow* currentConfigWindow;
-
-	NIDAQThread* thread;
-
-	JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR(NIDAQEditor);
-
+    JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (NIDAQEditor);
 };
 
-
-#endif  // __RHD2000EDITOR_H_2AD3C591__
+#endif // __RHD2000EDITOR_H_2AD3C591__
