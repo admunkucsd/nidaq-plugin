@@ -44,7 +44,7 @@ class NIDAQEditor;
 
 */
 
-class NIDAQThread : public DataThread
+class TESTABLE NIDAQThread : public DataThread
 {
 public:
     /** Constructor */

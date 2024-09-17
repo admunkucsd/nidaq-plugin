@@ -27,7 +27,17 @@ set_property(DIRECTORY APPEND PROPERTY COMPILE_DEFINITIONS
 set(CMAKE_CXX_STANDARD 20)
 
 set(SOURCE_PATH ${CMAKE_CURRENT_SOURCE_DIR}/Source)
+
+if(BUILD_TESTS)
+set(TESTS_PATH ${CMAKE_CURRENT_SOURCE_DIR}/Tests)
+endif()
+
 file(GLOB_RECURSE SRC_FILES LIST_DIRECTORIES false "${SOURCE_PATH}/*.cpp" "${SOURCE_PATH}/*.h")
+
+if(BUILD_TESTS)
+file(GLOB_RECURSE TESTS_FILES LIST_DIRECTORIES false "${TESTS_PATH}/*.cpp")
+endif()
+
 set(GUI_COMMONLIB_DIR ${GUI_BASE_DIR}/installed_libs)
 
 set(CONFIGURATION_FOLDER $<$<CONFIG:Debug>:Debug>$<$<NOT:$<CONFIG:Debug>>:Release>)
@@ -42,10 +52,30 @@ endif()
 
 add_dependencies(${PLUGIN_NAME} open-ephys)
 
+if(BUILD_TESTS)
+add_library(${PLUGIN_NAME}_testable SHARED ${SRC_FILES})
+endif()
+
 target_compile_features(${PLUGIN_NAME} PUBLIC cxx_auto_type cxx_generalized_initializers)
 target_include_directories(${PLUGIN_NAME} PUBLIC ${GUI_BASE_DIR}/JuceLibraryCode ${GUI_BASE_DIR}/JuceLibraryCode/modules ${GUI_BASE_DIR}/Plugins/Headers ${GUI_COMMONLIB_DIR}/include)
 
+if(BUILD_TESTS)
+target_compile_features(${PLUGIN_NAME}_testable PUBLIC cxx_auto_type cxx_generalized_initializers)
+target_include_directories(${PLUGIN_NAME}_testable PUBLIC ${GUI_BASE_DIR}/JuceLibraryCode ${GUI_BASE_DIR}/JuceLibraryCode/modules ${GUI_BASE_DIR}/Plugins/Headers ${GUI_COMMONLIB_DIR}/include ${SQLite3_INCLUDE_DIRS})
+
+add_executable(
+		${PLUGIN_NAME}_tests
+		${TESTS_FILES}
+)
+
+target_compile_features(${PLUGIN_NAME}_tests PRIVATE cxx_std_17)
+endif()
+
 set(GUI_BIN_DIR ${CMAKE_BINARY_DIR}/plugin-GUI/${CONFIGURATION_FOLDER})
+
+if(BUILD_TESTS)
+set(GUI_TEST_HELPERS_DIR ${GUI_BASE_DIR}/TestHelpers)
+endif()
 
 if (NOT CMAKE_LIBRARY_ARCHITECTURE)
 	if (CMAKE_SIZEOF_VOID_P EQUAL 8)
@@ -59,7 +89,7 @@ endif()
 
 #Libraries and compiler options
 if(MSVC)
-	target_link_libraries(${PLUGIN_NAME} ${GUI_BIN_DIR}/open-ephys.lib)
+	target_link_libraries(${PLUGIN_NAME} PRIVATE ${GUI_BIN_DIR}/open-ephys.lib)
 	target_compile_options(${PLUGIN_NAME} PRIVATE /sdl- /W0)
 	
 	set(INSTALL_PATH ${GUI_BIN_DIR}/plugins)
@@ -67,7 +97,7 @@ if(MSVC)
 
 	set(CMAKE_PREFIX_PATH ${CMAKE_CURRENT_SOURCE_DIR}/../libs)
 elseif(LINUX)
-	target_link_libraries(${PLUGIN_NAME} GL X11 Xext Xinerama asound dl freetype pthread rt)
+	target_link_libraries(${PLUGIN_NAME} PRIVATE GL X11 Xext Xinerama asound dl freetype pthread rt)
 	set_property(TARGET ${PLUGIN_NAME} APPEND_STRING PROPERTY LINK_FLAGS
 		"-fvisibility=hidden -fPIC -rdynamic -Wl,-rpath,'$$ORIGIN/../shared'")
 	target_compile_options(${PLUGIN_NAME} PRIVATE -fPIC -rdynamic)
@@ -87,6 +117,26 @@ if(MSVC)
 	add_custom_command(TARGET ${PLUGIN_NAME} POST_BUILD COMMAND ${CMAKE_COMMAND} -E copy $<TARGET_FILE:${PLUGIN_NAME}> ${INSTALL_PATH})
 endif()
 
+if(BUILD_TESTS)
+if(MSVC)
+	add_custom_command(TARGET ${PLUGIN_NAME}_tests POST_BUILD COMMAND ${CMAKE_COMMAND} -E copy $<TARGET_FILE:gui_testable_source> $<TARGET_FILE_DIR:${PLUGIN_NAME}_tests>)
+	add_custom_command(TARGET ${PLUGIN_NAME}_tests POST_BUILD COMMAND ${CMAKE_COMMAND} -E copy $<TARGET_FILE:test_helpers> $<TARGET_FILE_DIR:${PLUGIN_NAME}_tests>)
+endif()
+
+add_dependencies(${PLUGIN_NAME}_testable gui_testable_source test_helpers)
+add_dependencies(${PLUGIN_NAME}_tests ${PLUGIN_NAME}_testable)
+
+#for testing
+find_package(Boost REQUIRED COMPONENTS headers)
+
+target_compile_definitions(${PLUGIN_NAME}_testable PRIVATE -DBUILD_TESTS)
+target_link_libraries(${PLUGIN_NAME}_testable PRIVATE gui_testable_source)
+target_compile_definitions(${PLUGIN_NAME}_tests PRIVATE -DBUILD_TESTS -DTEST_RUNNER)
+target_link_libraries(${PLUGIN_NAME}_tests PRIVATE ${PLUGIN_NAME}_testable gtest_main test_helpers Boost::headers PUBLIC gui_testable_source)
+target_include_directories(${PLUGIN_NAME}_tests PRIVATE ${GUI_TEST_HELPERS_DIR}/include ${GUI_BASE_DIR}/Source)
+add_test(NAME ${PLUGIN_NAME}_tests  COMMAND ${PLUGIN_NAME}_tests)
+endif()
+
 #create filters for vs and xcode
 
 foreach( src_file IN ITEMS ${SRC_FILES})
@@ -99,7 +149,12 @@ endforeach()
 #Add 
 set(NIDAQMX_INCLUDE_DIR ${CMAKE_CURRENT_SOURCE_DIR}/Source/nidaq-api)
 target_include_directories(${PLUGIN_NAME} PRIVATE ${NIDAQMX_INCLUDE_DIR})
-target_link_libraries(${PLUGIN_NAME} ${NIDAQMX_LINK_DIR})
+target_link_libraries(${PLUGIN_NAME} PRIVATE ${NIDAQMX_LINK_DIR})
+
+if(BUILD_TESTS)
+	target_link_libraries(${PLUGIN_NAME}_testable PRIVATE ${NIDAQMX_LINK_DIR})
+	target_link_libraries(${PLUGIN_NAME}_tests PRIVATE ${NIDAQMX_LINK_DIR})
+endif()
 
 macro(print_all_variables)
     message(STATUS "print_all_variables------------------------------------------{")
