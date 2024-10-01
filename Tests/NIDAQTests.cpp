@@ -3,7 +3,7 @@
 
 #include <TestFixtures.h>
 
-class NIDAQTests : public testing::Test
+class NIDAQUnitTests : public testing::Test
 {
 protected:
     void SetUp() override
@@ -32,7 +32,7 @@ Reading from analog channels returns signed floating point values corresponding 
 Reading from digital channels returns a single binary value per channel, indicating the state of the digital signal read. 
 This test verifies that the NIDAQmx plugin can perform these read operations and copy these values to the output Audio Buffer.
 */
-TEST_F (NIDAQTests, DataIntegrity)
+TEST_F (NIDAQUnitTests, DataIntegrity)
 {
     // Write the buffer to the NIDAQmx plugin
     tester->startAcquisition (false);
