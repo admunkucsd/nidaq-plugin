@@ -25,6 +25,7 @@
 #include <math.h>
 
 #include "NIDAQComponents.h"
+#include "NIDAQmxApiWrapper.h"
 
 AnalogInput::AnalogInput (String name, NIDAQ::int32 termCfgs) : InputChannel (name)
 {
@@ -109,9 +110,10 @@ int NIDAQmxDeviceManager::getDeviceIndexFromName (String name)
     return -1;
 }
 
-NIDAQmx::NIDAQmx (NIDAQDevice* device_)
+NIDAQmx::NIDAQmx (NIDAQDevice* device_, NIDAQmxApiWrapper* wrapper)
     : Thread ("NIDAQmx-" + String (device_->getName())),
-      device (device_)
+      device (device_), 
+      wrapper (wrapper)
 {
     connect();
 
@@ -200,7 +202,7 @@ void NIDAQmx::connect()
         char errBuff[ERR_BUFF_SIZE] = { '\0' };
 
         char ai_channel_data[2048];
-        NIDAQ::DAQmxGetDevAIPhysicalChans (STR2CHR (device->getName()), &ai_channel_data[0], sizeof (ai_channel_data));
+        wrapper->getDevAIPhysicalChans (STR2CHR (device->getName()), &ai_channel_data[0], sizeof (ai_channel_data));
 
         StringArray channel_list;
         channel_list.addTokens (&ai_channel_data[0], ", ", "\"");
@@ -216,7 +218,7 @@ void NIDAQmx::connect()
             {
                 /* Get channel termination */
                 NIDAQ::int32 termCfgs;
-                NIDAQ::DAQmxGetPhysicalChanAITermCfgs (channel_list[i].toUTF8(), &termCfgs);
+                wrapper->getPhysicalChanAITermCfgs (channel_list[i].toUTF8(), &termCfgs);
 
                 String name = channel_list[i].toRawUTF8();
 

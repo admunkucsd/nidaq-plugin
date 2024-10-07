@@ -195,6 +195,8 @@ private:
     void closeConnection();
 
     Array<float> fillPercentage;
+
+    std::unique_ptr<NIDAQmxApiWrapper> wrapper;
 };
 
 #endif // __NIDAQTHREAD_H__

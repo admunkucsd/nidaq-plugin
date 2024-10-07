@@ -97,7 +97,7 @@ private:
     bool enabled = false;
 };
 
-class AnalogInput : public InputChannel
+class TESTABLE AnalogInput : public InputChannel
 {
 public:
     AnalogInput (String name, NIDAQ::int32 terminalConfig);
@@ -170,10 +170,12 @@ private:
     int activeDeviceIndex;
 };
 
-class NIDAQmx : public Thread
+class NIDAQmxApiWrapper;
+
+class TESTABLE NIDAQmx : public Thread
 {
 public:
-    NIDAQmx (NIDAQDevice* device_);
+    NIDAQmx (NIDAQDevice* device_, NIDAQmxApiWrapper* wrapper);
     ~NIDAQmx() {};
 
     /* Pointer to the active device */
@@ -245,6 +247,7 @@ private:
     std::map<int, int> digitalLineMap;
 
     DataBuffer* aiBuffer;
+    NIDAQmxApiWrapper* wrapper;
 };
 
 #endif // __NIDAQCOMPONENTS_H__

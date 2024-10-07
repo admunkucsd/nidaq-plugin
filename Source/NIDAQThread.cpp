@@ -23,6 +23,7 @@
 
 #include "NIDAQThread.h"
 #include "NIDAQEditor.h"
+#include "NIDAQmxApiWrapper.h"
 #include <stdexcept>
 
 DataThread* NIDAQThread::createDataThread (SourceNode* sn)
@@ -42,6 +43,7 @@ std::unique_ptr<GenericEditor> NIDAQThread::createEditor (SourceNode* sn)
 NIDAQThread::NIDAQThread (SourceNode* sn) : DataThread (sn),
                                             inputAvailable (false)
 {
+    wrapper = std::make_unique<NIDAQmxApiWrapperImpl>();
     dm = new NIDAQmxDeviceManager();
 
     dm->scanForDevices();
@@ -175,7 +177,7 @@ Array<NIDAQDevice*> NIDAQThread::getDevices()
 
 int NIDAQThread::openConnection()
 {
-    mNIDAQ = new NIDAQmx (dm->getDeviceAtIndex (0));
+    mNIDAQ = new NIDAQmx (dm->getDeviceAtIndex (0), wrapper.get());
 
     sourceBuffers.add (new DataBuffer (getNumActiveAnalogInputs(), 10000));
 
@@ -255,7 +257,7 @@ int NIDAQThread::swapConnection (String deviceName)
 
         if (dev->getName() == deviceName)
         {
-            mNIDAQ = new NIDAQmx (dev);
+            mNIDAQ = new NIDAQmx (dev, wrapper.get());
 
             sourceBuffers.removeLast();
             sourceBuffers.add (new DataBuffer (getNumActiveAnalogInputs(), 10000));
