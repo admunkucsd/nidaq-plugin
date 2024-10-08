@@ -148,10 +148,12 @@ private:
     String name;
 };
 
+class NIDAQmxApiWrapper;
+
 class NIDAQmxDeviceManager
 {
 public:
-    NIDAQmxDeviceManager() {};
+    NIDAQmxDeviceManager (NIDAQmxApiWrapper* apiWrapper);
     ~NIDAQmxDeviceManager() {};
 
     void scanForDevices();
@@ -168,9 +170,8 @@ public:
 private:
     OwnedArray<NIDAQDevice> devices;
     int activeDeviceIndex;
+    NIDAQmxApiWrapper* apiWrapper;
 };
-
-class NIDAQmxApiWrapper;
 
 class TESTABLE NIDAQmx : public Thread
 {
@@ -247,7 +248,7 @@ private:
     std::map<int, int> digitalLineMap;
 
     DataBuffer* aiBuffer;
-    NIDAQmxApiWrapper* wrapper;
+    NIDAQmxApiWrapper* apiWrapper;
 };
 
 #endif // __NIDAQCOMPONENTS_H__

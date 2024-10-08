@@ -43,8 +43,8 @@ std::unique_ptr<GenericEditor> NIDAQThread::createEditor (SourceNode* sn)
 NIDAQThread::NIDAQThread (SourceNode* sn) : DataThread (sn),
                                             inputAvailable (false)
 {
-    wrapper = std::make_unique<NIDAQmxApiWrapperImpl>();
-    dm = new NIDAQmxDeviceManager();
+    apiWrapper = std::make_unique<NIDAQmxApiWrapper>();
+    dm = new NIDAQmxDeviceManager(apiWrapper.get());
 
     dm->scanForDevices();
 
@@ -177,7 +177,7 @@ Array<NIDAQDevice*> NIDAQThread::getDevices()
 
 int NIDAQThread::openConnection()
 {
-    mNIDAQ = new NIDAQmx (dm->getDeviceAtIndex (0), wrapper.get());
+    mNIDAQ = new NIDAQmx (dm->getDeviceAtIndex (0), apiWrapper.get());
 
     sourceBuffers.add (new DataBuffer (getNumActiveAnalogInputs(), 10000));
 
@@ -257,7 +257,7 @@ int NIDAQThread::swapConnection (String deviceName)
 
         if (dev->getName() == deviceName)
         {
-            mNIDAQ = new NIDAQmx (dev, wrapper.get());
+            mNIDAQ = new NIDAQmx (dev, apiWrapper.get());
 
             sourceBuffers.removeLast();
             sourceBuffers.add (new DataBuffer (getNumActiveAnalogInputs(), 10000));
@@ -336,7 +336,7 @@ Array<SettingsRange> NIDAQThread::getVoltageRanges()
     return mNIDAQ->device->voltageRanges;
 }
 
-Array<NIDAQ::float64> NIDAQThread::getSampleRates()
+Array<NIDAQmxApiWrapper::float64> NIDAQThread::getSampleRates()
 {
     return mNIDAQ->sampleRates;
 }

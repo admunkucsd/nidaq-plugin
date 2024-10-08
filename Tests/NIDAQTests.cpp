@@ -2,6 +2,7 @@
 #include "gtest/gtest.h"
 #include "gmock/gmock.h"
 #include "../Source/nidaq-api/NIDAQmx.h"
+#include "../Source/NIDAQmxApiWrapper.h"
 
 #include <TestFixtures.h>
 
@@ -28,57 +29,51 @@ protected:
     int64_t currentSampleIndex = 0;
 };
 
+class MockNIDAQmxApiWrapper : public NIDAQmxApiWrapper
+{
+public:
+    virtual ~MockNIDAQmxApiWrapper() override = default;
+
+    MOCK_METHOD3 (getDevAIPhysicalChans, NIDAQ::int32 (const char* device, char* data, NIDAQ::uInt32 bufferSize));
+    MOCK_METHOD2 (getPhysicalChanAITermCfgs, NIDAQ::int32 (const char physicalChannel[], NIDAQ::int32* data));
+    MOCK_METHOD2 (getPhysicalChanAIVoltageRngs, NIDAQ::int32 (const char physicalChannel[], NIDAQ::float64* data));
+    
+    // create mock methods for all pure virtual functions in NIDAQmxApiWrapper
+    MOCK_METHOD2 (createTask, NIDAQ::int32 (const char taskName[], NIDAQ::TaskHandle* taskHandle));
+    MOCK_METHOD1 (startTask, NIDAQ::int32 (NIDAQ::TaskHandle taskHandle));
+    MOCK_METHOD1 (stopTask, NIDAQ::int32 (NIDAQ::TaskHandle taskHandle));
+    MOCK_METHOD1 (clearTask, NIDAQ::int32 (NIDAQ::TaskHandle taskHandle));
+    MOCK_METHOD8 (createAIVoltageChan, 
+        NIDAQ::int32 (NIDAQ::TaskHandle taskHandle, 
+            const char physicalChannel[], 
+            const char nameToAssignToChannel[], 
+            NIDAQ::int32 terminalConfig, 
+            NIDAQ::float64 minVal, 
+            NIDAQ::float64 maxVal, 
+            NIDAQ::int32 units, 
+            const char customScaleName[]));
+    MOCK_METHOD2(getDevProductCategory, NIDAQ::int32 (const char device[], NIDAQ::int32* data));
+    MOCK_METHOD2(getDevProductNum, NIDAQ::int32 (const char device[], NIDAQ::int32* data));
+    MOCK_METHOD2(getDevProductSerialNum, NIDAQ::int32 (const char device[], NIDAQ::int32* data));
+    MOCK_METHOD2(getDevAISimultaneousSamplingSupported, NIDAQ::int32 (const char device[], NIDAQ::int32* data));
+    MOCK_METHOD2(getDevAIMinRate, NIDAQ::int32 (const char device[], NIDAQ::float64* data));
+    MOCK_METHOD2(getDevAIMaxSingleChanRate, NIDAQ::int32 (const char device[], NIDAQ::float64* data));
+    MOCK_METHOD2(getDevAIMaxMultiChanRate, NIDAQ::int32 (const char device[], NIDAQ::float64* data));
+    MOCK_METHOD3(getDevAIVoltageRngs, NIDAQ::int32 (const char device[], NIDAQ::float64* data, NIDAQ::uInt32 arraySizeInElements));
+    MOCK_METHOD2(getPhysicalChanAITermCfgs, NIDAQ::int32 (const char physicalChannel[], NIDAQ::int32* data));
+    MOCK_METHOD3(getDevDILines, NIDAQ::int32 (const char device[], char* data, NIDAQ::uInt32 bufferSize));
+    MOCK_METHOD2(getExtendedErrorInfo, NIDAQ::int32 (char* errorString, NIDAQ::uInt32 bufferSize));
+};
+
 // Mocking the NIDAQmx API functions
 class MockNIDAQmx : public NIDAQmx
 {
 public:
-    MockNIDAQmx (NIDAQDevice* device) : NIDAQmx(device) {}
+    MockNIDAQmx (NIDAQDevice* device) : apiWrapper(std::make_unique<MockNIDAQmxApiWrapper>()),
+        NIDAQmx(device, apiWrapper.get()) 
+    {}
 
-    // Mocking required API functions
-    static int32 DAQmxGetDevProductCategory (const char device[], int32* data)
-    {
-        // Simulate getting device product category
-        *data = DAQmx_Val_USBDAQ; // e.g., simulate a USB device
-        return 0; // success
-    }
-
-    static int32 DAQmxCreateTask (const char taskName[], NIDAQ::TaskHandle* taskHandle)
-    {
-        // Simulate task creation
-        *taskHandle = reinterpret_cast<NIDAQ::TaskHandle> (new int (1)); // arbitrary task handle
-        return 0; // success
-    }
-
-    static int32 DAQmxCreateAIVoltageChan (NIDAQ::TaskHandle taskHandle,
-        const char physicalChannel[], 
-        const char nameToAssignToChannel[], 
-        int32 terminalConfig,
-        float minVal,
-        float maxVal,
-        int32 units,
-        const void* customScaleName)
-    {
-        // Simulate creating AI Voltage Channel
-        return 0; // success
-    }
-
-    static int32 DAQmxCreateDIChan (NIDAQ::TaskHandle taskHandle, 
-        const char lines[], 
-        const char nameToAssignToLines[],
-        int32 lineGrouping)
-    {
-        // Simulate creating DI Channel
-        return 0; // success
-    }
-
-    static int32 DAQmxGetDevAISimultaneousSamplingSupported (const char device[], NIDAQ::bool32* data)
-    {
-        // Simulate querying simultaneous sampling support
-        *data = 1; // Simultaneous sampling supported
-        return 0;
-    }
-    // Add more mock functions as needed...
-    MOCK_METHOD3 (getDevAIPhysicalChans, int32 (const char* device, char* data, uint32 bufferSize));
+    std::unique_ptr<MockNIDAQmxApiWrapper> apiWrapper;
 };
 
 class NIDAQmxUnitTests : public testing::Test
@@ -140,25 +135,48 @@ TEST_F (NIDAQmxUnitTests, TestConnectSimulatedDevice)
 // Test run() function with mocked analog input channels
 TEST_F (NIDAQmxUnitTests, TestRun)
 {
-    SetUp ("Dev1");
+    SetUp ("Simulated");
 
-    EXPECT_CALL(*daqmx, getDevAIPhysicalChans (testing::_, testing::_, testing::_))
+    // mock dev product category
+    EXPECT_CALL (*daqmx->apiWrapper, getDevProductCategory (testing::_, testing::_))
         .WillOnce (testing::Return (0));
-    // Prepare the device
-    daqmx->setNumActiveAnalogInputs (4);
-    daqmx->setVoltageRange(0);
 
-    // Add analog input channels (mocked)
-    for (int i = 0; i < daqmx->getNumActiveAnalogInputs(); i++)
-    {
-        daqmx->ai.add (new AnalogInput ("Dev1/ai" + std::to_string (i), DAQmx_Val_Bit_TermCfg_Diff));
-    }
+    // mock dev product number
+    EXPECT_CALL (*daqmx->apiWrapper, getDevProductNum (testing::_, testing::_))
+        .WillOnce (testing::Return (0));
 
-    daqmx->connect();
+    // mock dev product serial number
+    EXPECT_CALL (*daqmx->apiWrapper, getDevProductSerialNum (testing::_, testing::_))
+        .WillOnce (testing::Return (0));
 
-    // Mock run
+    // mock dev AI simultaneous sampling supported
+    EXPECT_CALL (*daqmx->apiWrapper, getDevAISimultaneousSamplingSupported (testing::_, testing::_))
+        .WillOnce (testing::Return (0));
+
+    // mock dev AI min rate
+    EXPECT_CALL (*daqmx->apiWrapper, getDevAIMinRate (testing::_, testing::_))
+        .WillOnce (testing::Return (1000));
+
+    // mock dev AI max single channel rate
+    EXPECT_CALL (*daqmx->apiWrapper, getDevAIMaxSingleChanRate (testing::_, testing::_))
+        .WillOnce (testing::Return (30000));
+
+    // mock dev AI max multi channel rate
+    EXPECT_CALL (*daqmx->apiWrapper, getDevAIMaxMultiChanRate (testing::_, testing::_))
+        .WillOnce (testing::Return (30000));
+
+    // mock dev AI voltage ranges
+    EXPECT_CALL (*daqmx->apiWrapper, getDevAIVoltageRngs (testing::_, testing::_, testing::_))
+        .WillOnce (testing::Return (0));
+
+    // mock physical channel AI term configs
+    EXPECT_CALL (*daqmx->apiWrapper, getPhysicalChanAITermCfgs (testing::_, testing::_))
+        .WillOnce (testing::Return (0));
+
+    // mock create AI voltage channel
+    EXPECT_CALL (*daqmx->apiWrapper, createAIVoltageChan (testing::_, testing::_, testing::_, testing::_, testing::_, testing::_, testing::_, testing::_))
+        .WillOnce (testing::Return (0));
+
+    // Run the NIDAQmx plugin
     daqmx->run();
-
-    // Validate expected outcomes
-    EXPECT_TRUE (daqmx->ai.size() > 0); // Ensure data was captured
 }

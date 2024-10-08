@@ -30,6 +30,7 @@
 #include <string.h>
 
 #include "NIDAQComponents.h"
+#include "NIDAQmxApiWrapper.h"
 #include "nidaq-api/NIDAQmx.h"
 
 class SourceNode;
@@ -128,7 +129,7 @@ public:
     Array<SettingsRange> getVoltageRanges();
     int getVoltageRangeIndex() { return voltageRangeIndex; };
 
-    Array<NIDAQ::float64> getSampleRates();
+    Array<NIDAQmxApiWrapper::float64> getSampleRates();
     int getSampleRateIndex() { return sampleRateIndex; };
 
     bool toggleAIChannel (int channelIndex);
@@ -196,7 +197,7 @@ private:
 
     Array<float> fillPercentage;
 
-    std::unique_ptr<NIDAQmxApiWrapper> wrapper;
+    std::unique_ptr<NIDAQmxApiWrapper> apiWrapper;
 };
 
 #endif // __NIDAQTHREAD_H__
