@@ -161,8 +161,6 @@ public:
         return &displayMutex;
     }
 
-    NIDAQmx* getNIDAQ() { return mNIDAQ.get(); };
-
     friend class AIButton;
     friend class DIButton;
     friend class SourceTypeButton;

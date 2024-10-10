@@ -214,9 +214,6 @@ public:
     bool getPortState (int idx) { return device->digitalPortStates[idx]; };
     void setPortState (int idx, bool state) { device->digitalPortStates.set (idx, state); };
 
-    DataBuffer* getAIBuffer() { return aiBuffer; };
-    NIDAQmxAPI::uInt32* getEventCodes() { return eventCodes; };
-
     void run();
 
     Array<NIDAQmxAPI::float64> sampleRates;
