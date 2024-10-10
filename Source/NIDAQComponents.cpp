@@ -25,9 +25,8 @@
 #include <math.h>
 
 #include "NIDAQComponents.h"
-#include "NIDAQmxApiWrapper.h"
 
-AnalogInput::AnalogInput (String name, NIDAQmxApiWrapper::int32 termCfgs) : InputChannel (name)
+AnalogInput::AnalogInput (String name, NIDAQmxAPI::int32 termCfgs) : InputChannel (name)
 {
     sourceTypes.clear();
 
@@ -44,16 +43,16 @@ AnalogInput::AnalogInput (String name, NIDAQmxApiWrapper::int32 termCfgs) : Inpu
         sourceTypes.add (SOURCE_TYPE::PSEUDO_DIFF);
 }
 
-static int32 GetTerminalNameWithDevPrefix (NIDAQmxApiWrapper::TaskHandle taskHandle, const char terminalName[], char triggerName[], 
-    NIDAQmxApiWrapper* apiWrapper);
+static int32 GetTerminalNameWithDevPrefix (NIDAQmxAPI::TaskHandle taskHandle, const char terminalName[], char triggerName[], 
+    NIDAQmxAPI* apiWrapper);
 
-static int32 GetTerminalNameWithDevPrefix (NIDAQmxApiWrapper::TaskHandle taskHandle, const char terminalName[], char triggerName[],
-    NIDAQmxApiWrapper* apiWrapper)
+static int32 GetTerminalNameWithDevPrefix (NIDAQmxAPI::TaskHandle taskHandle, const char terminalName[], char triggerName[],
+    NIDAQmxAPI* apiWrapper)
 {
-    NIDAQmxApiWrapper::int32 error = 0;
+    NIDAQmxAPI::int32 error = 0;
     char device[256];
-    NIDAQmxApiWrapper::int32 productCategory;
-    NIDAQmxApiWrapper::uInt32 numDevices, i = 1;
+    NIDAQmxAPI::int32 productCategory;
+    NIDAQmxAPI::uInt32 numDevices, i = 1;
 
     DAQmxErrChk (apiWrapper->getTaskNumDevices (taskHandle, &numDevices));
     while (i <= numDevices)
@@ -72,7 +71,7 @@ Error:
     return error;
 }
 
-NIDAQmxDeviceManager::NIDAQmxDeviceManager (NIDAQmxApiWrapper* apiWrapper) : 
+NIDAQmxDeviceManager::NIDAQmxDeviceManager (NIDAQmxAPI* apiWrapper) : 
     apiWrapper (apiWrapper)
 {}
 
@@ -116,7 +115,7 @@ int NIDAQmxDeviceManager::getDeviceIndexFromName (String name)
     return -1;
 }
 
-NIDAQmx::NIDAQmx (NIDAQDevice* device_, NIDAQmxApiWrapper* wrapper)
+NIDAQmx::NIDAQmx (NIDAQDevice* device_, NIDAQmxAPI* wrapper)
     : Thread ("NIDAQmx-" + String (device_->getName())),
       device (device_), 
       apiWrapper (wrapper)
@@ -171,25 +170,25 @@ void NIDAQmx::connect()
         LOGD ("Serial Num: ", device->serialNum);
 
         /* Get simultaneous sampling supported */
-        NIDAQmxApiWrapper::bool32 supported = false;
+        NIDAQmxAPI::bool32 supported = false;
         apiWrapper->getDevAISimultaneousSamplingSupported (STR2CHR (deviceName), &supported);
         device->simAISamplingSupported = supported;
         LOGD ("Simultaneous sampling supported: ", supported ? "YES" : "NO");
 
         /* Get device sample rates */
-        NIDAQmxApiWrapper::float64 smin;
+        NIDAQmxAPI::float64 smin;
         apiWrapper->getDevAIMinRate (STR2CHR (deviceName), &smin);
         LOGD ("Min sample rate: ", smin);
 
-        NIDAQmxApiWrapper::float64 smaxs;
+        NIDAQmxAPI::float64 smaxs;
         apiWrapper->getDevAIMaxSingleChanRate (STR2CHR (deviceName), &smaxs);
         LOGD ("Max single channel sample rate: ", smaxs);
 
-        NIDAQmxApiWrapper::float64 smaxm;
+        NIDAQmxAPI::float64 smaxm;
         apiWrapper->getDevAIMaxMultiChanRate (STR2CHR (deviceName), &smaxm);
         LOGD ("Max multi channel sample rate: ", smaxm);
 
-        NIDAQmxApiWrapper::float64 data[512];
+        NIDAQmxAPI::float64 data[512];
         apiWrapper->getDevAIVoltageRngs (STR2CHR (deviceName), &data[0], sizeof (data));
 
         // Get available voltage ranges
@@ -197,14 +196,14 @@ void NIDAQmx::connect()
         LOGD ("Detected voltage ranges: \n");
         for (int i = 0; i < 512; i += 2)
         {
-            NIDAQmxApiWrapper::float64 vmin = data[i];
-            NIDAQmxApiWrapper::float64 vmax = data[i + 1];
+            NIDAQmxAPI::float64 vmin = data[i];
+            NIDAQmxAPI::float64 vmax = data[i + 1];
             if (vmin == vmax || abs (vmin) < 1e-10 || vmax < 1e-2)
                 break;
             device->voltageRanges.add (SettingsRange (vmin, vmax));
         }
 
-        NIDAQmxApiWrapper::int32 error = 0;
+        NIDAQmxAPI::int32 error = 0;
         char errBuff[ERR_BUFF_SIZE] = { '\0' };
 
         char ai_channel_data[2048];
@@ -223,7 +222,7 @@ void NIDAQmx::connect()
             if (channel_list[i].length() > 0)
             {
                 /* Get channel termination */
-                NIDAQmxApiWrapper::int32 termCfgs;
+                NIDAQmxAPI::int32 termCfgs;
                 apiWrapper->getPhysicalChanAITermCfgs (channel_list[i].toUTF8(), &termCfgs);
 
                 String name = channel_list[i].toRawUTF8();
@@ -232,7 +231,7 @@ void NIDAQmx::connect()
 
                 ai.add (new AnalogInput (name, termCfgs));
 
-                if (device->numAIChannels++ <= numActiveAnalogInputs)
+                if (device->numAIChannels++ <= getNumActiveAnalogInputs())
                 {
                     ai.getLast()->setAvailable (true);
                     ai.getLast()->setEnabled (true);
@@ -243,12 +242,12 @@ void NIDAQmx::connect()
         }
 
         // Get ADC resolution for each voltage range (throwing error as is)
-        NIDAQmxApiWrapper::TaskHandle adcResolutionQuery;
+        NIDAQmxAPI::TaskHandle adcResolutionQuery;
 
         apiWrapper->createTask ("ADCResolutionQuery", &adcResolutionQuery);
 
         SettingsRange vRange;
-        NIDAQmxApiWrapper::float64 smax = smaxm;
+        NIDAQmxAPI::float64 smax = smaxm;
 
         for (int i = 0; i < device->voltageRanges.size(); i++)
         {
@@ -264,7 +263,7 @@ void NIDAQmx::connect()
                 DAQmx_Val_Volts, // voltage units
                 NULL));
 
-            NIDAQmxApiWrapper::float64 adcResolution;
+            NIDAQmxAPI::float64 adcResolution;
             DAQmxErrChk (apiWrapper->getAIResolution (adcResolutionQuery, STR2CHR (ai[i]->getName()), &adcResolution));
 
             device->adcResolutions.add (adcResolution);
@@ -304,7 +303,7 @@ void NIDAQmx::connect()
                 if (! device->digitalPortNames.contains (portName.toRawUTF8()))
                 {
                     device->digitalPortNames.add (portName.toRawUTF8());
-                    if (device->numDIChannels < numActiveDigitalInputs)
+                    if (device->numDIChannels < getNumActiveDigitalInputs())
                         device->digitalPortStates.add (true);
                     else
                         device->digitalPortStates.add (false);
@@ -313,7 +312,7 @@ void NIDAQmx::connect()
                 di.add (new InputChannel (fullName));
 
                 di.getLast()->setAvailable (true);
-                if (device->numDIChannels < numActiveDigitalInputs)
+                if (device->numDIChannels < getNumActiveDigitalInputs())
                     di.getLast()->setEnabled (true);
 
                 device->numDIChannels++;
@@ -322,7 +321,7 @@ void NIDAQmx::connect()
 
         // Set sample rate range
         if (! device->simAISamplingSupported)
-            smax /= numActiveAnalogInputs;
+            smax /= getNumActiveAnalogInputs();
 
         device->sampleRateRange = SettingsRange (smin, smax);
 
@@ -365,35 +364,35 @@ void NIDAQmx::run()
     /* Derived from NIDAQmx: ANSI C Example program: ContAI-ReadDigChan.c */
 
     /* Single task to handle all analog inputs */
-    NIDAQmxApiWrapper::TaskHandle taskHandleAI = 0;
+    NIDAQmxAPI::TaskHandle taskHandleAI = 0;
 
     /* Potentially multiple tasks to handle different digital line properties */
-    std::vector<NIDAQmxApiWrapper::TaskHandle> taskHandlesDI = std::vector<NIDAQmxApiWrapper::TaskHandle>();
+    std::vector<NIDAQmxAPI::TaskHandle> taskHandlesDI = std::vector<NIDAQmxAPI::TaskHandle>();
 
-    NIDAQmxApiWrapper::int32 error = 0;
+    NIDAQmxAPI::int32 error = 0;
     char errBuff[ERR_BUFF_SIZE] = { '\0' };
 
     /**************************************/
     /********CONFIG ANALOG CHANNELS********/
     /**************************************/
 
-    NIDAQmxApiWrapper::int32 ai_read = 0;
+    NIDAQmxAPI::int32 ai_read = 0;
     static int totalAIRead = 0;
 
     aiBuffer->clear();
-    ai_data.malloc (CHANNEL_BUFFER_SIZE * numActiveAnalogInputs, sizeof (NIDAQmxApiWrapper::float64));
+    ai_data.malloc (CHANNEL_BUFFER_SIZE * numActiveAnalogInputs, sizeof (NIDAQmxAPI::float64));
 
-    eventCodes.malloc (CHANNEL_BUFFER_SIZE, sizeof (NIDAQmxApiWrapper::uInt32));
+    eventCodes.malloc (CHANNEL_BUFFER_SIZE, sizeof (NIDAQmxAPI::uInt32));
 
-    NIDAQmxApiWrapper::int32 numSampsPerChan = CHANNEL_BUFFER_SIZE;
+    NIDAQmxAPI::int32 numSampsPerChan = CHANNEL_BUFFER_SIZE;
     if (device->isUSBDevice)
         numSampsPerChan = 100;
 
-    NIDAQmxApiWrapper::int32 arraySizeInSamps = numActiveAnalogInputs * numSampsPerChan;
-    NIDAQmxApiWrapper::float64 timeout = 5.0;
+    NIDAQmxAPI::int32 arraySizeInSamps = getNumActiveAnalogInputs() * numSampsPerChan;
+    NIDAQmxAPI::float64 timeout = 5.0;
 
     uint64 linesEnabled = 0;
-    NIDAQmxApiWrapper::int32 di_read = 0;
+    NIDAQmxAPI::int32 di_read = 0;
 
     /* Create an analog input task */
     if (device->isUSBDevice)
@@ -402,9 +401,9 @@ void NIDAQmx::run()
         DAQmxErrChk (apiWrapper->createTask (STR2CHR ("AITask_PXI" + getSerialNumber()), &taskHandleAI));
 
     /* Create a voltage channel for each analog input */
-    for (int i = 0; i < numActiveAnalogInputs; i++)
+    for (int i = 0; i < getNumActiveAnalogInputs(); i++)
     {
-        NIDAQmxApiWrapper::int32 termConfig;
+        NIDAQmxAPI::int32 termConfig;
 
         switch (ai[i]->getSourceType())
         {
@@ -440,7 +439,7 @@ void NIDAQmx::run()
         getSampleRate(), // rate : samples per second per channel
         DAQmx_Val_Rising, // activeEdge : (DAQmc_Val_Rising || DAQmx_Val_Falling)
         DAQmx_Val_ContSamps, // sampleMode : (DAQmx_Val_FiniteSamps || DAQmx_Val_ContSamps || DAQmx_Val_HWTimedSinglePoint)
-        numActiveAnalogInputs * CHANNEL_BUFFER_SIZE)); // sampsPerChanToAcquire :
+        getNumActiveAnalogInputs() * CHANNEL_BUFFER_SIZE)); // sampsPerChanToAcquire :
     // If sampleMode == DAQmx_Val_FiniteSamps : # of samples to acquire for each channel
     // Elif sampleMode == DAQmx_Val_ContSamps : circular buffer size
 
@@ -454,7 +453,7 @@ void NIDAQmx::run()
 
     static int totalDIRead = 0;
 
-    if (numActiveDigitalInputs)
+    if (getNumActiveDigitalInputs())
     {
         LOGD ("Active digital mask: ", getActiveDigitalLines());
 
@@ -474,7 +473,7 @@ void NIDAQmx::run()
         {
             if (port.length() && portIdx < di.size() / PORT_SIZE && device->digitalPortStates[portIdx])
             {
-                NIDAQmxApiWrapper::TaskHandle taskHandleDI = 0;
+                NIDAQmxAPI::TaskHandle taskHandleDI = 0;
                 /* Create a digital input task using device serial number to gurantee unique task name per device */
                 if (device->isUSBDevice)
                     DAQmxErrChk (apiWrapper->createTask (STR2CHR ("DITask_USB" + getSerialNumber() + "port" + std::to_string (portIdx)), &taskHandleDI));
@@ -491,7 +490,7 @@ void NIDAQmx::run()
                 /* In general, only Port0 supports hardware timing */
                 if (portIdx == 0)
                 {
-                    if (numActiveAnalogInputs && numActiveDigitalInputs) // USB devices do not have an internal clock and instead use CPU, so we can't configure the sample clock timing
+                    if (getNumActiveAnalogInputs() && getNumActiveDigitalInputs()) // USB devices do not have an internal clock and instead use CPU, so we can't configure the sample clock timing
                         DAQmxErrChk (apiWrapper->cfgSampClkTiming (
                             taskHandleDI, // task handle
                             trigName, // source : NULL means use internal clock, we will sync to analog input clock
@@ -514,20 +513,20 @@ void NIDAQmx::run()
     LOGD ("Is USB Device: ", device->isUSBDevice);
 
     // This order is necessary to get the timing right
-    if (numActiveAnalogInputs)
+    if (getNumActiveAnalogInputs())
         DAQmxErrChk (apiWrapper->taskControl (taskHandleAI, DAQmx_Val_Task_Commit));
-    if (numActiveDigitalInputs)
+    if (getNumActiveDigitalInputs())
     {
         for (auto& taskHandleDI : taskHandlesDI)
             DAQmxErrChk (apiWrapper->taskControl (taskHandleDI, DAQmx_Val_Task_Commit));
     }
 
-    if (numActiveDigitalInputs)
+    if (getNumActiveDigitalInputs())
     {
         for (auto& taskHandleDI : taskHandlesDI)
             DAQmxErrChk (apiWrapper->startTask (taskHandleDI));
     }
-    if (numActiveAnalogInputs)
+    if (getNumActiveAnalogInputs())
         DAQmxErrChk (apiWrapper->startTask (taskHandleAI));
 
     double ts;
@@ -537,7 +536,8 @@ void NIDAQmx::run()
 
     while (! threadShouldExit())
     {
-        if (numActiveAnalogInputs)
+        if (getNumActiveAnalogInputs())
+        {
             DAQmxErrChk (apiWrapper->readAnalogF64 (
                 taskHandleAI,
                 numSampsPerChan,
@@ -547,6 +547,9 @@ void NIDAQmx::run()
                 arraySizeInSamps,
                 &ai_read,
                 NULL));
+
+            LOGD ("Entered");
+        }
 
         // LOGD("arraySizeInSamps: ", arraySizeInSamps, " Samples read: ", ai_read);
 
@@ -560,7 +563,7 @@ void NIDAQmx::run()
             {
                 if (digitalReadSize == 32)
                 {
-                    NIDAQmxApiWrapper::uInt32 di_data_32_[CHANNEL_BUFFER_SIZE];
+                    NIDAQmxAPI::uInt32 di_data_32_[CHANNEL_BUFFER_SIZE];
                     DAQmxErrChk (apiWrapper->readDigitalU32 (
                         taskHandleDI,
                         numSampsPerChan,
@@ -575,7 +578,7 @@ void NIDAQmx::run()
                 }
                 else if (digitalReadSize == 16)
                 {
-                    NIDAQmxApiWrapper::uInt16 di_data_16_[CHANNEL_BUFFER_SIZE];
+                    NIDAQmxAPI::uInt16 di_data_16_[CHANNEL_BUFFER_SIZE];
                     DAQmxErrChk (apiWrapper->readDigitalU16 (
                         taskHandleDI,
                         numSampsPerChan,
@@ -590,7 +593,7 @@ void NIDAQmx::run()
                 }
                 else if (digitalReadSize == 8)
                 {
-                    NIDAQmxApiWrapper::uInt8 di_data_8_[CHANNEL_BUFFER_SIZE];
+                    NIDAQmxAPI::uInt8 di_data_8_[CHANNEL_BUFFER_SIZE];
                     DAQmxErrChk (apiWrapper->readDigitalU8 (
                         taskHandleDI,
                         numSampsPerChan,
@@ -625,11 +628,11 @@ void NIDAQmx::run()
         int count = 0;
         for (int i = 0; i < arraySizeInSamps; i++)
         {
-            int channel = i % numActiveAnalogInputs;
+            int channel = i % getNumActiveAnalogInputs();
 
             aiSamples[channel] = ai[channel]->isEnabled() ? ai_data[i] : 0;
 
-            if (i % numActiveAnalogInputs == 0)
+            if (i % getNumActiveAnalogInputs() == 0)
             {
                 ai_timestamp++;
                 if (getActiveDigitalLines() > 0)
@@ -653,11 +656,11 @@ void NIDAQmx::run()
     // DAQmx Stop Code
     /*********************************************/
 
-    if (numActiveAnalogInputs)
+    if (getNumActiveAnalogInputs())
         apiWrapper->stopTask (taskHandleAI);
-    if (numActiveAnalogInputs)
+    if (getNumActiveAnalogInputs())
         apiWrapper->clearTask (taskHandleAI);
-    if (numActiveDigitalInputs)
+    if (getNumActiveDigitalInputs())
     {
         for (auto& taskHandleDI : taskHandlesDI)
         {

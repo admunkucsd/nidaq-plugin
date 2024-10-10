@@ -4,7 +4,7 @@
 
 #include <DataThreadHeaders.h>
 
-class TESTABLE NIDAQmxApiWrapper
+class TESTABLE NIDAQmxAPI
 {
 public:
     using int32 = NIDAQ::int32;
@@ -17,7 +17,7 @@ public:
     using uInt8 = NIDAQ::uInt8;
 
 public:
-    virtual ~NIDAQmxApiWrapper();
+    virtual ~NIDAQmxAPI();
 
     virtual int32 getDevAIPhysicalChans (const char* device, char* data, uInt32 bufferSize)
     {

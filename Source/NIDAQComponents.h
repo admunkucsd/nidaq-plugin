@@ -28,7 +28,7 @@
 #include <stdio.h>
 #include <string.h>
 
-#include "nidaq-api/NIDAQmx.h"
+#include "NIDAQmxAPI.h"
 
 #define MAX_NUM_AI_CHANNELS 32
 #define MAX_NUM_DI_CHANNELS 32
@@ -66,10 +66,10 @@ enum SOURCE_TYPE
 
 struct SettingsRange
 {
-    NIDAQ::float64 min, max;
+    NIDAQmxAPI::float64 min, max;
     SettingsRange() : min (0),
                       max (0) {}
-    SettingsRange (NIDAQ::float64 min_, NIDAQ::float64 max_)
+    SettingsRange (NIDAQmxAPI::float64 min_, NIDAQmxAPI::float64 max_)
         : min (min_),
           max (max_) {}
 };
@@ -100,7 +100,7 @@ private:
 class TESTABLE AnalogInput : public InputChannel
 {
 public:
-    AnalogInput (String name, NIDAQ::int32 terminalConfig);
+    AnalogInput (String name, NIDAQmxAPI::int32 terminalConfig);
     AnalogInput() : InputChannel() {};
     ~AnalogInput() {};
 
@@ -123,13 +123,13 @@ public:
 
     String productName;
 
-    NIDAQ::int32 deviceCategory;
-    NIDAQ::uInt32 productNum;
-    NIDAQ::uInt32 serialNum;
-    NIDAQ::uInt32 numAIChannels;
-    NIDAQ::uInt32 numAOChannels;
-    NIDAQ::uInt32 numDIChannels;
-    NIDAQ::uInt32 numDOChannels;
+    NIDAQmxAPI::int32 deviceCategory;
+    NIDAQmxAPI::uInt32 productNum;
+    NIDAQmxAPI::uInt32 serialNum;
+    NIDAQmxAPI::uInt32 numAIChannels;
+    NIDAQmxAPI::uInt32 numAOChannels;
+    NIDAQmxAPI::uInt32 numDIChannels;
+    NIDAQmxAPI::uInt32 numDOChannels;
 
     bool isUSBDevice;
     bool simAISamplingSupported;
@@ -139,7 +139,7 @@ public:
     SettingsRange sampleRateRange;
 
     Array<SettingsRange> voltageRanges;
-    Array<NIDAQ::float64> adcResolutions;
+    Array<NIDAQmxAPI::float64> adcResolutions;
 
     Array<std::string> digitalPortNames;
     Array<bool> digitalPortStates;
@@ -148,12 +148,10 @@ private:
     String name;
 };
 
-class NIDAQmxApiWrapper;
-
 class NIDAQmxDeviceManager
 {
 public:
-    NIDAQmxDeviceManager (NIDAQmxApiWrapper* apiWrapper);
+    NIDAQmxDeviceManager (NIDAQmxAPI* apiWrapper);
     ~NIDAQmxDeviceManager() {};
 
     void scanForDevices();
@@ -170,13 +168,13 @@ public:
 private:
     OwnedArray<NIDAQDevice> devices;
     int activeDeviceIndex;
-    NIDAQmxApiWrapper* apiWrapper;
+    NIDAQmxAPI* apiWrapper;
 };
 
 class TESTABLE NIDAQmx : public Thread
 {
 public:
-    NIDAQmx (NIDAQDevice* device_, NIDAQmxApiWrapper* wrapper);
+    NIDAQmx (NIDAQDevice* device_, NIDAQmxAPI* wrapper);
     ~NIDAQmx() {};
 
     /* Pointer to the active device */
@@ -190,7 +188,7 @@ public:
     String getSerialNumber() { return String (device->serialNum); };
 
     /* Analog configuration */
-    NIDAQ::float64 getSampleRate() { return sampleRates[sampleRateIndex]; };
+    NIDAQmxAPI::float64 getSampleRate() { return sampleRates[sampleRateIndex]; };
     void setSampleRate (int index) { sampleRateIndex = index; };
 
     SettingsRange getVoltageRange() { return device->voltageRanges[voltageRangeIndex]; };
@@ -216,9 +214,12 @@ public:
     bool getPortState (int idx) { return device->digitalPortStates[idx]; };
     void setPortState (int idx, bool state) { device->digitalPortStates.set (idx, state); };
 
+    DataBuffer* getAIBuffer() { return aiBuffer; };
+    NIDAQmxAPI::uInt32* getEventCodes() { return eventCodes; };
+
     void run();
 
-    Array<NIDAQ::float64> sampleRates;
+    Array<NIDAQmxAPI::float64> sampleRates;
 
     OwnedArray<AnalogInput> ai;
     OwnedArray<InputChannel> di;
@@ -226,9 +227,6 @@ public:
     friend class NIDAQThread;
 
 private:
-    /* Manages connected NIDAQ devices */
-    ScopedPointer<NIDAQmxDeviceManager> dm;
-
     int deviceIndex = 0;
     int sampleRateIndex = 0;
     int voltageRangeIndex = 0;
@@ -238,9 +236,9 @@ private:
     int numActiveAnalogInputs = DEFAULT_NUM_ANALOG_INPUTS; // 8
     int numActiveDigitalInputs = DEFAULT_NUM_DIGITAL_INPUTS; // 8
 
-    HeapBlock<NIDAQ::float64> ai_data;
+    HeapBlock<NIDAQmxAPI::float64> ai_data;
 
-    HeapBlock<NIDAQ::uInt32> eventCodes;
+    HeapBlock<NIDAQmxAPI::uInt32> eventCodes;
 
     int64 ai_timestamp;
     uint64 eventCode;
@@ -248,7 +246,7 @@ private:
     std::map<int, int> digitalLineMap;
 
     DataBuffer* aiBuffer;
-    NIDAQmxApiWrapper* apiWrapper;
+    NIDAQmxAPI* apiWrapper;
 };
 
 #endif // __NIDAQCOMPONENTS_H__

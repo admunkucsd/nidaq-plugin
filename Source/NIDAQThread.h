@@ -30,8 +30,6 @@
 #include <string.h>
 
 #include "NIDAQComponents.h"
-#include "NIDAQmxApiWrapper.h"
-#include "nidaq-api/NIDAQmx.h"
 
 class SourceNode;
 class NIDAQThread;
@@ -49,13 +47,13 @@ class TESTABLE NIDAQThread : public DataThread
 {
 public:
     /** Constructor */
-    NIDAQThread (SourceNode* sn);
+    NIDAQThread (SourceNode* sn, NIDAQmxAPI* apiWrapper = nullptr);
 
     /** Destructor */
     ~NIDAQThread();
 
     /** Create the DataThread */
-    static DataThread* createDataThread (SourceNode* sn);
+    static DataThread* createDataThread (SourceNode* sn, NIDAQmxAPI* apiWrapper = nullptr);
 
     /** Create the custom editor */
     std::unique_ptr<GenericEditor> createEditor (SourceNode* sn);
@@ -129,7 +127,7 @@ public:
     Array<SettingsRange> getVoltageRanges();
     int getVoltageRangeIndex() { return voltageRangeIndex; };
 
-    Array<NIDAQmxApiWrapper::float64> getSampleRates();
+    Array<NIDAQmxAPI::float64> getSampleRates();
     int getSampleRateIndex() { return sampleRateIndex; };
 
     bool toggleAIChannel (int channelIndex);
@@ -163,6 +161,8 @@ public:
         return &displayMutex;
     }
 
+    NIDAQmx* getNIDAQ() { return mNIDAQ.get(); };
+
     friend class AIButton;
     friend class DIButton;
     friend class SourceTypeButton;
@@ -173,13 +173,13 @@ private:
     NIDAQEditor* editor;
 
     /* Manages connected NIDAQ devices */
-    ScopedPointer<NIDAQmxDeviceManager> dm;
+    std::unique_ptr<NIDAQmxDeviceManager> dm;
 
     /* Flag any available devices */
     bool inputAvailable;
 
     /* Handle to current NIDAQ device */
-    ScopedPointer<NIDAQmx> mNIDAQ;
+    std::unique_ptr<NIDAQmx> mNIDAQ;
 
     /* Array of source streams -- one per connected NIDAQ device */
     OwnedArray<DataStream> sourceStreams;
@@ -197,7 +197,7 @@ private:
 
     Array<float> fillPercentage;
 
-    std::unique_ptr<NIDAQmxApiWrapper> apiWrapper;
+    NIDAQmxAPI* apiWrapper;
 };
 
 #endif // __NIDAQTHREAD_H__
