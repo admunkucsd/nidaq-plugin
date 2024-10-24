@@ -25,9 +25,9 @@
 #include "NIDAQEditor.h"
 #include <stdexcept>
 
-DataThread* NIDAQThread::createDataThread (SourceNode* sn, NIDAQmxAPI* apiWrapper)
+DataThread* NIDAQThread::createDataThread (SourceNode* sn)
 {
-    return new NIDAQThread (sn, apiWrapper);
+    return new NIDAQThread (sn);
 }
 
 std::unique_ptr<GenericEditor> NIDAQThread::createEditor (SourceNode* sn)
@@ -44,7 +44,7 @@ NIDAQThread::NIDAQThread (SourceNode* sn, NIDAQmxAPI* apiWrapper) : DataThread (
                                                                     inputAvailable (false)
 {
     if (! apiWrapper)
-        apiWrapper = new NIDAQmxAPI();
+        this->apiWrapper = std::make_unique<NIDAQmxAPI>();
 
     dm = std::make_unique<NIDAQmxDeviceManager> (apiWrapper);
 
@@ -58,7 +58,6 @@ NIDAQThread::NIDAQThread (SourceNode* sn, NIDAQmxAPI* apiWrapper) : DataThread (
 
 NIDAQThread::~NIDAQThread()
 {
-    delete apiWrapper;
 }
 
 void NIDAQThread::initialize (bool signalChainIsLoading)
@@ -180,7 +179,7 @@ Array<NIDAQDevice*> NIDAQThread::getDevices()
 
 int NIDAQThread::openConnection()
 {
-    mNIDAQ = std::make_unique<NIDAQmx> (dm->getDeviceAtIndex (0), apiWrapper);
+    mNIDAQ = std::make_unique<NIDAQmx> (dm->getDeviceAtIndex (0), apiWrapper.get());
 
     sourceBuffers.add (new DataBuffer (getNumActiveAnalogInputs(), 10000));
 
@@ -260,7 +259,7 @@ int NIDAQThread::swapConnection (String deviceName)
 
         if (dev->getName() == deviceName)
         {
-            mNIDAQ = std::make_unique<NIDAQmx> (dev, apiWrapper);
+            mNIDAQ = std::make_unique<NIDAQmx> (dev, apiWrapper.get());
 
             sourceBuffers.removeLast();
             sourceBuffers.add (new DataBuffer (getNumActiveAnalogInputs(), 10000));

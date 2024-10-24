@@ -53,7 +53,7 @@ public:
     ~NIDAQThread();
 
     /** Create the DataThread */
-    static DataThread* createDataThread (SourceNode* sn, NIDAQmxAPI* apiWrapper = nullptr);
+    static DataThread* createDataThread (SourceNode* sn);
 
     /** Create the custom editor */
     std::unique_ptr<GenericEditor> createEditor (SourceNode* sn);
@@ -195,7 +195,7 @@ private:
 
     Array<float> fillPercentage;
 
-    NIDAQmxAPI* apiWrapper;
+    std::unique_ptr<NIDAQmxAPI> apiWrapper;
 };
 
 #endif // __NIDAQTHREAD_H__
